@@ -16,9 +16,12 @@ struct MCPServersView: View {
     var body: some View {
         NavigationSplitView {
             sidebar
+                .splitColumnSizing()
                 .navigationSplitViewColumnWidth(min: 230, ideal: 270, max: 380)
         } detail: {
             detail
+                .splitColumnSizing()
+                .frame(minWidth: 560)
         }
         .onAppear {
             if selection == nil { selection = app.mcpServers.first?.id }

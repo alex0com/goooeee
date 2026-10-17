@@ -12,9 +12,12 @@ struct ConnectionsView: View {
     var body: some View {
         NavigationSplitView {
             sidebar
+                .splitColumnSizing()
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
         } detail: {
             detail
+                .splitColumnSizing()
+                .frame(minWidth: 560)
         }
         .onAppear {
             if selection == nil { selection = app.connections.first?.id }

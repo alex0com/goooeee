@@ -11,12 +11,15 @@ struct WorkspaceView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             ConversationSidebar(model: model)
+                .splitColumnSizing()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 420)
         } detail: {
             ChatDetailView(model: model)
+                .splitColumnSizing()
         }
         .inspector(isPresented: inspectorBinding) {
             InspectorView(model: model)
+                .splitColumnSizing()
                 .inspectorColumnWidth(min: 270, ideal: 320, max: 520)
         }
         .toolbar { toolbarContent }

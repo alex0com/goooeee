@@ -10,9 +10,11 @@ struct ChatDetailView: View {
         if model.workspace.showTerminal {
             VSplitView {
                 chat
+                    .splitColumnSizing()
                     .frame(minHeight: 240)
                     .layoutPriority(1)
                 TerminalDrawer(model: model)
+                    .splitColumnSizing()
                     .frame(minHeight: 120, idealHeight: 260)
             }
         } else {

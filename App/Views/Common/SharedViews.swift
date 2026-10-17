@@ -327,6 +327,18 @@ extension View {
     func sectionHeader() -> some View {
         font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
     }
+
+    /// Keeps a split view pane's min and max size constant, whatever its content. Use it on every
+    /// pane of a `NavigationSplitView`, `.inspector`, `VSplitView` or `HSplitView`.
+    ///
+    /// The split view asks each pane for its min and max size during the window's constraint
+    /// pass. If the answer changes there (a picker gains a longer model name, a badge appears
+    /// after the server answers, the terminal title changes), AppKit re-runs the pass until it
+    /// throws `_postWindowNeedsUpdateConstraints` and the app aborts. Pane sizes come from
+    /// `navigationSplitViewColumnWidth`, `inspectorColumnWidth` or a `frame` applied after this.
+    func splitColumnSizing() -> some View {
+        frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+    }
 }
 
 extension NSPasteboard {
