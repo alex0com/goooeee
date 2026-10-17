@@ -7,4 +7,7 @@ itself. It connects to a server, applies the right per-model settings, renders m
 and thinking blocks, shows speed metrics, and includes a terminal in each window for launching
 the server.
 
+goooeee is distributed as source code only: clone it, open it in Xcode, and run. Build
+instructions will be added with the first scaffold.
+
 Status: planning. See [docs/PLAN.md](docs/PLAN.md).

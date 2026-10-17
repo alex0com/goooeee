@@ -35,7 +35,8 @@ same window.
   built-in profiles, or the user.
 - iOS / iPadOS targets.
 - Tool calling / MCP / agent loops (the data model leaves room for them, see §16).
-- Mac App Store distribution (see §11: the terminal needs a non-sandboxed app).
+- Mac App Store distribution, notarized binaries or auto-updates. goooeee is **distributed as
+  source code**: clone, open in Xcode, build and run (§3.1).
 
 ---
 
@@ -74,8 +75,8 @@ We keep its shape and UI ideas and replace everything that runs a model.
 | Area | Choice | Why |
 |---|---|---|
 | Language / UI | Swift 6, SwiftUI, AppKit where needed | Native look, multi-window, inspector APIs |
-| Minimum OS | macOS 15 (open question, §14) | `NavigationSplitView` + `.inspector`, `@Observable`, modern `WindowGroup(for:)` |
-| Project | **XcodeGen** `project.yml` + local SwiftPM package `GoooeeeKit` | Reviewable project file; core logic testable with `swift test` on Linux CI |
+| Minimum OS | macOS 15 (assumed, §14) | `NavigationSplitView` + `.inspector`, `@Observable`, modern `WindowGroup(for:)` |
+| Project | **XcodeGen** `project.yml` + local SwiftPM package `GoooeeeKit`; the generated `goooeee.xcodeproj` is committed too | Reviewable project file, and building from source needs only Xcode; core logic testable with `swift test` on Linux CI |
 | Networking | `URLSession.bytes(for:)` + own SSE parser | No dependency, full control over streaming and cancellation |
 | Markdown | [Textual](https://github.com/gonzalezreal/textual) (successor to MarkdownUI, native text selection); MarkdownUI as fallback | GFM tables, task lists, selection, custom code-block styling |
 | Code highlighting | HighlightSwift (highlight.js via JavaScriptCore) | Many languages, light/dark themes |
@@ -84,7 +85,22 @@ We keep its shape and UI ideas and replace everything that runs a model.
 | Terminal | [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) `LocalProcessTerminalView` | Full VT100/xterm emulation with a PTY, used by several shipping apps |
 | Persistence | JSON files in Application Support behind a `Store` protocol | Simple, exportable, diff-able, testable on Linux; can move to SQLite/GRDB later |
 | Secrets | Keychain | API keys never written to JSON |
-| Distribution | Developer ID, hardened runtime, notarized DMG (later Homebrew cask + Sparkle) | Terminal needs a non-sandboxed app |
+| Distribution | Source code only; app is **not sandboxed** and signed locally by whoever builds it (§3.1) | No App Store; the terminal needs a non-sandboxed app |
+| Network | Plain HTTP allowed to any host (`NSAllowsArbitraryLoads`), plus `NSLocalNetworkUsageDescription` for the macOS local-network prompt | Servers run on the LAN over plain HTTP; no TLS required |
+
+### 3.1 Building from source and signing
+- Requirements: a Mac with Xcode. `git clone`, open `goooeee.xcodeproj`, press Run. No Apple
+  developer account is needed.
+- `Config/Signing.xcconfig` (committed) defaults to **Sign to Run Locally** (ad-hoc,
+  `CODE_SIGN_IDENTITY = -`), an empty `DEVELOPMENT_TEAM` and a placeholder bundle ID
+  `local.goooeee.app`. It ends with `#include? "Local.xcconfig"`, so anyone who has a bundle ID
+  and team can set them in a git-ignored `Config/Local.xcconfig` without touching tracked files.
+  The real bundle ID and team can be filled in later without code changes.
+- With ad-hoc signing, macOS may ask again for Keychain access to saved API keys after a
+  rebuild (choose "Always Allow"). Local servers usually have no key, so this rarely shows up.
+- `project.yml` is the source of truth. After changing it, run `xcodegen` and commit the
+  regenerated project; CI fails if the committed project is out of date.
+- README gets a short "Build from source" section.
 
 ---
 
@@ -93,6 +109,8 @@ We keep its shape and UI ideas and replace everything that runs a model.
 ```
 goooeee/
 ├── project.yml                      # XcodeGen spec (app target + test targets)
+├── goooeee.xcodeproj/               # Generated from project.yml, committed so Xcode alone can build
+├── Config/                          # Signing.xcconfig (committed), Local.xcconfig (git-ignored)
 ├── App/                             # macOS app target (SwiftUI, AppKit, Keychain, SwiftTerm)
 │   ├── GoooeeeApp.swift
 │   ├── Commands/                    # Menu bar commands, keyboard shortcuts
@@ -235,7 +253,7 @@ key names, how thinking is toggled, where reasoning comes back, and where timing
 | LM Studio | `http://127.0.0.1:1234` | `/v1/models` | `reasoning_content` or tags | `usage` + client clock |
 | Ollama | `http://127.0.0.1:11434/v1` | `/v1/models` | `reasoning` or tags | `usage` + client clock |
 | OpenAI API | `https://api.openai.com/v1` | `/v1/models` | — (chat completions don't return reasoning text) | `usage` + client clock |
-| Generic OpenAI-compatible | user | `/v1/models` | Auto-detected (§8.2) | `usage` / `timings` if present + client clock |
+| Generic OpenAI-compatible (also **ninfer** and other custom engines) | user | `/v1/models` | Auto-detected (§8.2) | `usage` / `timings` if present + client clock |
 | Anthropic API *(non-OpenAI)* | `https://api.anthropic.com` | `/v1/models` | `thinking` content blocks | `usage` + client clock |
 
 New engines ("many other inference engines that are now being released") need no code to
@@ -492,8 +510,8 @@ numbers when they exist.
 - The curl view has **Run in terminal**, so any example command can be executed and inspected.
 - Closing a window whose terminal still has a running child process asks for confirmation.
 - **Consequence:** the App Sandbox would confine the shell and everything it launches, so
-  goooeee ships **non-sandboxed** with the hardened runtime and notarization (Developer ID).
-  A Mac App Store build would have to drop or restrict the terminal.
+  goooeee is built **without the App Sandbox**. That's fine because it's distributed as source
+  and never goes to the App Store.
 
 ---
 
@@ -590,21 +608,25 @@ settings:
 
 ---
 
-## 14. Open questions
+## 14. Decisions and open questions
 
-1. **"ninfer"**: I couldn't find an inference engine by this name. Is there a link? If it's
-   OpenAI-compatible it already works through the generic preset.
-2. **Sidebar scope**: the plan shows the same conversation library in every window's sidebar
+### Decided
+- **ninfer** is a custom engine that already works with OpenAI-API apps. It uses the
+  **Generic OpenAI-compatible** preset; no special code.
+- **Distribution**: source code only, no App Store. Non-sandboxed, signed locally (§3.1).
+- **Remote servers**: plain HTTP on the LAN, no Tailscale. Arbitrary HTTP loads are allowed and
+  the app shows no warnings for `http://` URLs.
+- **Bundle ID / signing team**: not decided yet. A placeholder bundle ID and ad-hoc signing are
+  used until then, overridable in `Config/Local.xcconfig` (§3.1).
+
+### Still open
+1. **Sidebar scope**: the plan shows the same conversation library in every window's sidebar
    (like Mail or Notes), with each window selecting and running its own chat. The alternative
    is a separate conversation list per window (a window as a workspace for one server/model).
-   Which one do you want?
-3. **Minimum macOS version**: macOS 15 is proposed. Targeting macOS 26 would allow the newer
-   SwiftUI text/rich-editor and WebView APIs and the current design language, but drops older Macs.
-4. **Distribution**: Developer ID + notarized DMG is proposed (needed for an unrestricted
-   terminal). Is the Mac App Store a requirement?
-5. **Remote servers**: is plain HTTP over LAN/Tailscale expected? (The plan allows arbitrary
-   loads and shows a warning for non-HTTPS remote hosts.)
-6. **Bundle identifier / signing team** to use in `project.yml`.
+   The plan proceeds with the shared library unless you choose otherwise.
+2. **Minimum macOS version**: the plan assumes macOS 15. Targeting macOS 26 would allow the
+   newer SwiftUI text/rich-editor and WebView APIs and the current design language, but drops
+   older Macs.
 
 ---
 
@@ -614,7 +636,7 @@ Each milestone ends with the app building, tests passing, and a short demo check
 
 | # | Milestone | Scope | Done when |
 |---|---|---|---|
-| **M0** | Scaffold | XcodeGen project, `GoooeeeKit` package, CI (Linux `swift test`, macOS `xcodebuild`), mock SSE server, entitlements/Info.plist (local network usage, ATS) | Empty 3-pane window launches; CI green |
+| **M0** | Scaffold | XcodeGen project (committed `.xcodeproj`), `Signing.xcconfig` + `Local.xcconfig` override, `GoooeeeKit` package, CI (Linux `swift test`, macOS `xcodebuild` + project-up-to-date check), mock SSE server, Info.plist (local network usage, arbitrary HTTP loads), no sandbox | Fresh clone builds and launches an empty 3-pane window in Xcode with no account configured; CI green |
 | **M1** | Core networking (OpenAI API) | SSE parser, `OpenAIChatProvider`, request builder, curl renderer, engine presets, JSON store, Keychain | Unit tests against recorded OpenAI-API fixtures from llama.cpp, vLLM, mlx_lm, mlx-vlm, ds4 |
 | **M2** | Connections UI | Connection manager, editor, model list, sampling fields with "server default", test runner, curl tab | Can create, test and save a connection to each engine; curl output runs as-is |
 | **M3** | Chat MVP | Conversation sidebar with swipe-to-delete, undo and Recently Deleted; conversation view, prompt field, streaming, stop, markdown + code + copy, metrics footer, persistence | Multi-turn chat with a local llama.cpp server; metrics match server `timings`; full swipe deletes and ⌘Z restores |
@@ -624,7 +646,7 @@ Each milestone ends with the app building, tests passing, and a short demo check
 | **M7** | Windows & settings | Multi-window, per-window state/restoration, app settings with per-type fonts, ⌘+/− scaling | Two windows stream from two servers at once; font changes apply live |
 | **M8** | Terminal | SwiftTerm drawer, launch commands, start/stop + health wait, run curl in terminal | Start `llama-server` from the drawer and chat once healthy |
 | **M9** | Anthropic API & template fallback | `AnthropicMessagesProvider` (thinking blocks, images); Template tab; "Load Jinja template…" with `OpenAICompletionProvider` | Chat with thinking on the Anthropic API; a GGUF with a broken template works after loading a `.jinja` file |
-| **M10** | Polish & release | Performance pass (long chats, 200 tok/s streams), accessibility, keyboard shortcuts, icons, notarized DMG | Release candidate |
+| **M10** | Polish & release | Performance pass (long chats, 200 tok/s streams), accessibility, keyboard shortcuts, icons, build-from-source docs | Tagged source release that builds cleanly from a fresh clone |
 
 ### Testing strategy
 - **Unit (GoooeeeCore, runs on Linux)**: SSE parsing, chunk-boundary tag splitting, provider
@@ -646,12 +668,13 @@ Each milestone ends with the app building, tests passing, and a short demo check
 | Markdown rendering cost on long streamed answers | Block-level caching; coalesced updates; lazy stacks |
 | Client-side PP speed is inaccurate (network, queueing) | Prefer server timings; label estimates "≈" |
 | Strict APIs reject unknown sampling keys | Per-engine key allow-list; nil = not sent |
-| Terminal under sandbox | Ship non-sandboxed (Developer ID) |
+| Terminal under sandbox | Build without the App Sandbox (source distribution, no App Store) |
+| Keychain re-prompts after ad-hoc rebuilds | Documented "Always Allow"; most local servers need no key |
 
 ---
 
 ## 16. After v1
 
 Branching, tool calls/MCP, chat search and folders, side-by-side "compare two models" view,
-OpenAI Responses API (for reasoning summaries), SSH tunnel helper for remote servers, Sparkle updates,
+OpenAI Responses API (for reasoning summaries), SSH tunnel helper for remote servers,
 Shortcuts/AppIntents, prompt library.
