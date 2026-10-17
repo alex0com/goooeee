@@ -38,6 +38,13 @@ struct GoooeeeApp: App {
         }
         .defaultSize(width: 640, height: 480)
 
+        Window("goooeee Help", id: WindowID.help) {
+            HelpView()
+                .environment(model)
+                .preferredColorScheme(model.settingsStore.colorScheme)
+        }
+        .defaultSize(width: 980, height: 720)
+
         Settings {
             SettingsView()
                 .environment(model)
@@ -51,6 +58,7 @@ enum WindowID {
     static let connections = "connections"
     static let mcpServers = "mcp-servers"
     static let workspaces = "workspaces"
+    static let help = "help"
 }
 
 extension FocusedValues {
@@ -146,6 +154,19 @@ struct AppCommands: Commands {
                 .keyboardShortcut("-")
             Button("Actual Size") { model.settingsStore.resetTextSize() }
                 .keyboardShortcut("0")
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("goooeee Help") { openWindow(id: WindowID.help) }
+                .keyboardShortcut("?")
+            Button("Where goooeee Keeps Its Files") {
+                UserDefaults.standard.set(HelpTopic.filesAndData.id, forKey: HelpView.topicKey)
+                openWindow(id: WindowID.help)
+            }
+            Button("Keyboard Shortcuts") {
+                UserDefaults.standard.set(HelpTopic.shortcuts.id, forKey: HelpView.topicKey)
+                openWindow(id: WindowID.help)
+            }
         }
 
         CommandGroup(before: .windowList) {

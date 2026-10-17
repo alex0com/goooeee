@@ -463,6 +463,7 @@ private struct TerminalSettingsTab: View {
 private struct AdvancedSettingsTab: View {
     @Binding var settings: AppSettings
     @Environment(AppModel.self) private var app
+    @Environment(\.openWindow) private var openWindow
     @State private var confirmReset = false
 
     var body: some View {
@@ -487,6 +488,10 @@ private struct AdvancedSettingsTab: View {
                 }
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([AppDatabase.defaultURL])
+                }
+                Button("All goooeee Files…") {
+                    UserDefaults.standard.set(HelpTopic.filesAndData.id, forKey: HelpView.topicKey)
+                    openWindow(id: WindowID.help)
                 }
             }
             Section {
