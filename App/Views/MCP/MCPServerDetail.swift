@@ -156,8 +156,8 @@ enum MCPDetailTab: String, CaseIterable, Identifiable {
 struct MCPServerEditor: View {
     let original: MCPServerConfig
     var isNew: Bool
-    var onSaved: (MCPServerConfig) -> Void
-    var onCancel: (() -> Void)?
+    var onSaved: @MainActor (MCPServerConfig) -> Void
+    var onCancel: (@MainActor () -> Void)?
     @Environment(AppModel.self) private var app
 
     @State private var name: String
@@ -178,7 +178,7 @@ struct MCPServerEditor: View {
     @State private var problem: String?
     @State private var isSaving = false
 
-    init(original: MCPServerConfig, isNew: Bool, onSaved: @escaping (MCPServerConfig) -> Void, onCancel: (() -> Void)?) {
+    init(original: MCPServerConfig, isNew: Bool, onSaved: @escaping @MainActor (MCPServerConfig) -> Void, onCancel: (@MainActor () -> Void)?) {
         self.original = original
         self.isNew = isNew
         self.onSaved = onSaved

@@ -53,7 +53,7 @@ final class SettingsStore {
     }
 
     func swiftUIFont(for role: TextRole) -> Font {
-        Font(nsFont(for: role))
+        Font(nsFont(for: role) as CTFont)
     }
 
     static func nsFont(_ spec: FontSpec, monospaced: Bool = false, weight: NSFont.Weight = .regular) -> NSFont {

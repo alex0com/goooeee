@@ -250,7 +250,7 @@ private struct SystemPromptEditor: View {
                 get: { text ?? "" },
                 set: { text = $0 }
             ))
-            .font(Font(font))
+            .font(Font(font as CTFont))
             .scrollContentBackground(.hidden)
             .frame(minHeight: 70, maxHeight: 180)
             .padding(4)
@@ -258,7 +258,7 @@ private struct SystemPromptEditor: View {
             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.secondary.opacity(0.25)))
             if text == nil || text?.isEmpty == true {
                 Text(placeholder)
-                    .font(Font(font))
+                    .font(Font(font as CTFont))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)

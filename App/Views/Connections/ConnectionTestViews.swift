@@ -8,7 +8,7 @@ import SwiftUI
 struct ConnectionTestTab: View {
     var connection: ServerConnection
     var apiKey: String
-    var onFinished: (ConnectionTestSummary) -> Void
+    var onFinished: @MainActor (ConnectionTestSummary) -> Void
     @Environment(AppModel.self) private var app
     @State private var modelID = ""
     @State private var testVision = false
