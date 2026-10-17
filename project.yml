@@ -3,12 +3,12 @@
 #     xcodegen generate
 #
 # The generated goooeee.xcodeproj is committed too, so XcodeGen is only needed after
-# changing this file. Build settings live in Config/*.xcconfig.
+# changing this file or adding, moving or removing source files. Build settings live in
+# Config/*.xcconfig.
 
 name: goooeee
 
 options:
-  bundleIdPrefix: local.goooeee
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
@@ -55,10 +55,8 @@ targets:
       - sdk: PDFKit.framework
       - sdk: WebKit.framework
       - sdk: Security.framework
+    # Info.plist, entitlements, bundle ID and signing come from Config/*.xcconfig.
     settings:
-      base:
-        INFOPLIST_FILE: App/Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: App/Resources/goooeee.entitlements
       configs:
         Debug:
           SWIFT_OPTIMIZATION_LEVEL: -Onone
