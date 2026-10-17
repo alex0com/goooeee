@@ -101,17 +101,31 @@ enum AttachmentLoader {
         return Attachment(kind: .pdf, name: name, mimeType: "application/pdf", data: data, text: text, pageImages: pages)
     }
 
+    /// Image data the composer takes from the pasteboard, in order of preference.
+    static let imageTypes: [NSPasteboard.PasteboardType] = [.png, .tiff, NSPasteboard.PasteboardType("public.jpeg"), NSPasteboard.PasteboardType("public.heic")]
+
     /// Attachments from a pasteboard: file URLs, images, or nothing.
+    ///
+    /// Text wins over an image: Numbers, Excel and Word copy a picture of the selection along with
+    /// its text. A lone URL doesn't count, because browsers add the image's address to Copy Image.
     static func fromPasteboard(_ pasteboard: NSPasteboard, maxMegapixels: Double, pdfAsImages: Bool) -> [Result<Attachment, Error>] {
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
             return urls.map { url in Result { try load(url: url, maxMegapixels: maxMegapixels, pdfAsImages: pdfAsImages) } }
         }
-        for type in [NSPasteboard.PasteboardType.png, .tiff, NSPasteboard.PasteboardType("public.jpeg"), NSPasteboard.PasteboardType("public.heic")] {
+        if let text = pasteboard.string(forType: .string), !isLoneURL(text) { return [] }
+        for type in imageTypes {
             if let data = pasteboard.data(forType: type), let attachment = image(from: data, name: "Pasted image", maxMegapixels: maxMegapixels) {
                 return [.success(attachment)]
             }
         }
         return []
+    }
+
+    private static func isLoneURL(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        guard !trimmed.contains(where: \.isWhitespace), let url = URL(string: trimmed), let scheme = url.scheme?.lowercased() else { return false }
+        return ["http", "https", "file", "data"].contains(scheme)
     }
 
     static func thumbnail(for attachment: Attachment, maxSize: CGFloat = 160) -> NSImage? {

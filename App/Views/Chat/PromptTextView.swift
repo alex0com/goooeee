@@ -68,7 +68,7 @@ struct PromptTextView: NSViewRepresentable {
         textView.typingAttributes = [.font: font, .foregroundColor: NSColor.textColor]
         textView.placeholder = placeholder
         textView.string = text
-        textView.registerForDraggedTypes([.fileURL, .png, .tiff])
+        textView.registerForDraggedTypes(ComposerTextView.attachmentTypes)
         scrollView.documentView = textView
         context.coordinator.textView = textView
         DispatchQueue.main.async {
@@ -236,6 +236,17 @@ struct PromptTextView: NSViewRepresentable {
 final class ComposerTextView: NSTextView {
     weak var coordinator: PromptTextView.Coordinator?
     var placeholder = ""
+
+    /// Files and images, taken as attachments.
+    static let attachmentTypes: [NSPasteboard.PasteboardType] = [.fileURL] + AttachmentLoader.imageTypes
+
+    /// Paste is enabled only for types listed here. A plain-text view lists no image types, so with
+    /// just a screenshot on the clipboard ⌘V did nothing and `paste(_:)` never ran.
+    override var readablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        let types = super.readablePasteboardTypes
+        return types + Self.attachmentTypes.filter { !types.contains($0) }
+    }
+
     private var showsPlaceholder = true
 
     override var string: String {
@@ -275,7 +286,7 @@ final class ComposerTextView: NSTextView {
     }
 
     override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
-        if let coordinator, type == .fileURL || type == .png || type == .tiff, coordinator.parent.onPasteboardAttachments(pboard) {
+        if let coordinator, Self.attachmentTypes.contains(type), coordinator.parent.onPasteboardAttachments(pboard) {
             return true
         }
         return super.readSelection(from: pboard, type: type)
@@ -288,14 +299,15 @@ final class ComposerTextView: NSTextView {
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         let pasteboard = sender.draggingPasteboard
-        if hasAttachments(pasteboard), let coordinator {
-            return coordinator.parent.onPasteboardAttachments(pasteboard)
+        // Text with a picture of itself (cells from Numbers) is dropped as text.
+        if hasAttachments(pasteboard), let coordinator, coordinator.parent.onPasteboardAttachments(pasteboard) {
+            return true
         }
         return super.performDragOperation(sender)
     }
 
     private func hasAttachments(_ pasteboard: NSPasteboard) -> Bool {
         pasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
-            || pasteboard.availableType(from: [.png, .tiff]) != nil
+            || pasteboard.availableType(from: AttachmentLoader.imageTypes) != nil
     }
 }
