@@ -498,10 +498,45 @@ final class WorkspaceModel {
         }
     }
 
-    func runInTerminal(_ command: String) {
+    /// Shows the terminal and pastes a code block at its prompt; the user presses Return.
+    func pasteInTerminal(_ code: String) {
         workspace.showTerminal = true
         persistWorkspaceSoon()
-        terminal.run(command)
+        terminal.paste(code)
+    }
+
+    /// Where a code block's Save As starts: the terminal's folder, so a following command such as
+    /// `bash hello.sh` finds the file.
+    var saveDirectory: URL {
+        let path = terminal.currentDirectory ?? workspace.workingDirectory ?? NSHomeDirectory()
+        return URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
+    }
+
+    /// Saves a code block with a save panel on the workspace window. Scripts with a `#!` line are
+    /// made executable.
+    func saveCode(_ code: String, suggestedName: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = suggestedName
+        panel.directoryURL = saveDirectory
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        let write: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try Data((code.hasSuffix("\n") ? code : code + "\n").utf8).write(to: url, options: .atomic)
+                if code.hasPrefix("#!") {
+                    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+                }
+                self?.showInfo("Saved \(url.lastPathComponent)" + (code.hasPrefix("#!") ? " (executable)" : ""))
+            } catch {
+                self?.showError("Couldn't save \(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if let window {
+            panel.beginSheetModal(for: window, completionHandler: write)
+        } else {
+            write(panel.runModal())
+        }
     }
 }
 

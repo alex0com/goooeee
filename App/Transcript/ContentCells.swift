@@ -170,13 +170,14 @@ final class ProseCell: TranscriptCellView {
 
 // MARK: - Code block
 
-/// A fenced code block: language, copy/run/preview, highlighted code that scrolls sideways,
+/// A fenced code block: language, copy/save/paste/preview, highlighted code that scrolls sideways,
 /// collapsed to 20 lines with "Show more" unless full-height code blocks are on.
 final class CodeBlockCell: TranscriptCellView {
     private let box = RoundedBackgroundView()
     private let languageLabel = makeTranscriptLabel(font: .systemFont(ofSize: 11, weight: .medium))
     private let copyButton = ActionButton.icon("doc.on.doc", "Copy code")
-    private let runButton = ActionButton.icon("terminal", "Run in terminal")
+    private let saveButton = ActionButton.icon("square.and.arrow.down", "Save As…")
+    private let pasteButton = ActionButton.icon("terminal", "Paste into Terminal (press Return there to run it)")
     private let previewButton = ActionButton.icon("eye", "Preview")
     private let scrollView = HorizontalScrollView()
     private let textView = TranscriptTextView.makeCode()
@@ -192,7 +193,7 @@ final class CodeBlockCell: TranscriptCellView {
         textView.textContainerInset = NSSize(width: Self.codeInset, height: 0)
         scrollView.documentView = textView
         addSubview(box)
-        for view in [languageLabel, copyButton, runButton, previewButton, scrollView, toggleButton] as [NSView] {
+        for view in [languageLabel, copyButton, saveButton, pasteButton, previewButton, scrollView, toggleButton] as [NSView] {
             addSubview(view)
         }
     }
@@ -275,7 +276,11 @@ final class CodeBlockCell: TranscriptCellView {
         textView.menuProvider = menuProvider()
         textView.setContent(context.codeString(rowID: row.id, code: info.code, language: info.language, isOpen: info.isOpen))
         languageLabel.stringValue = SyntaxHighlighter.displayName(info.language)
-        runButton.isHidden = info.isOpen || !SyntaxHighlighter.isShell(info.language)
+        // A `#!` script is a file to save; pasted into an interactive shell its lines fail.
+        pasteButton.isHidden = info.isOpen || !SyntaxHighlighter.isShell(info.language) || info.code.hasPrefix("#!")
+        let saveName = info.isOpen ? nil : context.saveName(for: row, code: info.code, language: info.language)
+        saveButton.isHidden = saveName == nil
+        saveButton.toolTip = saveName.map { "Save As “\($0)”…" } ?? "Save As…"
         previewButton.isHidden = info.isOpen || !SyntaxHighlighter.isPreviewable(info.language)
         let code = info.code
         let language = info.language
@@ -283,7 +288,10 @@ final class CodeBlockCell: TranscriptCellView {
             TranscriptContext.copyToPasteboard(code)
             self?.flashCopied()
         }
-        runButton.onClick = { [weak context] in context?.runInTerminal(code) }
+        pasteButton.onClick = { [weak context] in context?.pasteInTerminal(code) }
+        saveButton.onClick = { [weak context] in
+            if let saveName { context?.saveCode(code, name: saveName) }
+        }
         previewButton.onClick = { [weak context] in context?.preview(code: code, language: language) }
         let rowID = row.id
         toggleButton.onClick = { [weak context] in context?.toggleCode(rowID: rowID) }
@@ -307,7 +315,7 @@ final class CodeBlockCell: TranscriptCellView {
         languageLabel.frame = CGRect(x: column.x + 12, y: headerY + 6, width: 160, height: 16)
         let button = TranscriptMetrics.iconButtonSize
         var x = column.x + column.width - 6
-        for view in [copyButton, runButton, previewButton] where !view.isHidden {
+        for view in [copyButton, saveButton, pasteButton, previewButton] where !view.isHidden {
             x -= button
             view.frame = CGRect(x: x, y: headerY + 3, width: button, height: button)
             x -= 2

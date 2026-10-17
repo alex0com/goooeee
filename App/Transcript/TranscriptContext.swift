@@ -87,6 +87,7 @@ final class TranscriptContext {
     private var strings = LRUCache<String, NSAttributedString>(capacity: 800)
     private var thumbnails = LRUCache<UUID, NSImage>(capacity: 200)
     private var tableLayouts = LRUCache<String, MarkdownTableLayout>(capacity: 120)
+    private var saveNames: [String: String?] = [:]
     private var themeGeneration = 0
 
     init(store: SettingsStore) {
@@ -483,8 +484,25 @@ final class TranscriptContext {
         workspace?.resolvePermission(callID: callID, decision: decision)
     }
 
-    func runInTerminal(_ code: String) {
-        workspace?.runInTerminal(code)
+    func pasteInTerminal(_ code: String) {
+        workspace?.pasteInTerminal(code)
+    }
+
+    /// The file a finished code block should be saved as (`nil`: no Save As button). Cached per
+    /// row signature, because finding it searches the whole message.
+    func saveName(for row: TranscriptRow, code: String, language: String?) -> String? {
+        let key = "\(row.id)#\(row.signature)"
+        if let cached = saveNames[key] { return cached }
+        let markdown = message(row.messageID)?.text
+        let suggested = CodeFileName.suggested(code: code, precedingText: markdown.flatMap { CodeFileName.precedingText(of: code, in: $0) })
+        let name = CodeFileName.isSaveable(code: code, suggestedName: suggested) ? suggested ?? CodeFileName.defaultName(language: language) : nil
+        if saveNames.count > 500 { saveNames.removeAll() }
+        saveNames[key] = .some(name)
+        return name
+    }
+
+    func saveCode(_ code: String, name: String) {
+        workspace?.saveCode(code, suggestedName: name)
     }
 
     func preview(code: String, language: String?) {

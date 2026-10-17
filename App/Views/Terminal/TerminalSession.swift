@@ -22,6 +22,9 @@ final class TerminalSession: NSObject {
     @ObservationIgnored private var terminalView: LocalProcessTerminalView?
     /// Set when `startServer` ran a command; cleared when the shell is back at its prompt.
     @ObservationIgnored private var launchedServer = false
+    /// Input sent while a new shell is still starting; it's sent once the prompt is ready.
+    @ObservationIgnored private var pendingInput: [@MainActor () -> Void] = []
+    @ObservationIgnored private var promptWait: Task<Void, Never>?
 
     init(workingDirectory: String?) {
         self.workingDirectory = workingDirectory
@@ -85,6 +88,34 @@ final class TerminalSession: NSObject {
         currentDirectory = directory
         isShellRunning = true
         lastExitCode = nil
+        waitForPrompt()
+    }
+
+    /// Holds input back until the shell's line editor is running. Typed earlier, the pty echoes
+    /// it before the prompt and the shell shows it a second time.
+    private func waitForPrompt() {
+        promptWait?.cancel()
+        promptWait = Task { [weak self] in
+            // zsh with a large rc file takes ~40 ms; give up after 3 s and send anyway.
+            for _ in 0..<150 {
+                guard let self, !Task.isCancelled else { return }
+                if self.lineEditorIsActive { break }
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.promptWait = nil
+            let input = self.pendingInput
+            self.pendingInput = []
+            input.forEach { $0() }
+        }
+    }
+
+    /// zsh, bash and sh turn off canonical mode on the pty while they read a command line.
+    private var lineEditorIsActive: Bool {
+        guard let process = terminalView?.process, process.running, process.childfd >= 0 else { return false }
+        var attributes = termios()
+        guard tcgetattr(process.childfd, &attributes) == 0 else { return false }
+        return attributes.c_lflag & tcflag_t(ICANON) == 0
     }
 
     /// Starts a fresh shell after the previous one exited (or on request).
@@ -113,7 +144,46 @@ final class TerminalSession: NSObject {
     func run(_ command: String) {
         let view = self.view
         if !isShellRunning { startShell(in: view) }
-        send(command + "\r")
+        whenPromptReady { [weak self] in self?.send(command + "\r") }
+    }
+
+    private func whenPromptReady(_ action: @escaping @MainActor () -> Void) {
+        if promptWait != nil {
+            pendingInput.append(action)
+        } else {
+            action()
+        }
+    }
+
+    /// Puts text at the shell prompt as a paste, without pressing Return, so it can be checked
+    /// and edited first. Used for code blocks from the chat.
+    func paste(_ text: String) {
+        let view = self.view
+        if !isShellRunning { startShell(in: view) }
+        let text = Self.pasteableText(text)
+        whenPromptReady { [weak self] in
+            guard let self, let terminalView = self.terminalView else { return }
+            if terminalView.getTerminal().bracketedPasteMode {
+                self.send("\u{1b}[200~" + text + "\u{1b}[201~")
+            } else {
+                // Shells without bracketed paste (macOS's bash 3.2) would run each line and
+                // complete on tabs. Ctrl-V before them inserts them literally.
+                self.send(text.replacingOccurrences(of: "\n", with: "\u{16}\n").replacingOccurrences(of: "\t", with: "\u{16}\t"))
+            }
+        }
+        DispatchQueue.main.async { [weak view] in view?.window?.makeFirstResponder(view) }
+    }
+
+    /// Code from the model, made safe to paste: newlines normalized, trailing newlines dropped (they
+    /// would press Return) and control characters removed. An escape sequence in the text could
+    /// otherwise end the paste early and run the rest.
+    static func pasteableText(_ text: String) -> String {
+        var text = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        text.unicodeScalars.removeAll { scalar in
+            scalar != "\n" && scalar != "\t" && scalar.properties.generalCategory == .control
+        }
+        while text.hasSuffix("\n") { text.removeLast() }
+        return text
     }
 
     /// Runs a server launch command in the shell (`cd` + environment + command).
@@ -157,6 +227,9 @@ final class TerminalSession: NSObject {
 
     /// Ends the shell (window closing). Child processes get SIGHUP from the closed pty.
     func terminate() {
+        promptWait?.cancel()
+        promptWait = nil
+        pendingInput = []
         guard let view = terminalView, isShellRunning else { return }
         view.terminate()
         isShellRunning = false
