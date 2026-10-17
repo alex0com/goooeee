@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import GoooeeeMarkdown
 
@@ -186,5 +187,86 @@ struct IncrementalMarkdownTests {
             return
         }
         #expect(list.items.count == 2)
+    }
+}
+
+@Suite("Syntax highlighter")
+struct SyntaxHighlighterTests {
+    func kinds(_ code: String, _ language: String) -> [(String, SyntaxTokenKind)] {
+        let ns = code as NSString
+        return SyntaxHighlighter.tokens(for: code, language: language).map { (ns.substring(with: NSRange(location: $0.location, length: $0.length)), $0.kind) }
+    }
+
+    @Test func swift() {
+        let tokens = kinds("// note\nlet name: String = \"hi\" // tail\nfunc greet() { return 42 }", "swift")
+        #expect(tokens.contains { $0 == ("// note", .comment) })
+        #expect(tokens.contains { $0 == ("let", .keyword) })
+        #expect(tokens.contains { $0 == ("String", .type) })
+        #expect(tokens.contains { $0 == ("\"hi\"", .string) })
+        #expect(tokens.contains { $0 == ("greet", .function) })
+        #expect(tokens.contains { $0 == ("42", .number) })
+    }
+
+    @Test func pythonAndShell() {
+        let python = kinds("@decorator\ndef f(x):\n    \"\"\"doc\"\"\"\n    return None  # done", "py")
+        #expect(python.contains { $0 == ("def", .keyword) })
+        #expect(python.contains { $0 == ("@decorator", .attribute) })
+        #expect(python.contains { $0.1 == .string && $0.0.contains("doc") })
+        #expect(python.contains { $0 == ("None", .literal) })
+        #expect(python.contains { $0 == ("# done", .comment) })
+        let shell = kinds("export PATH=\"$HOME/bin:$PATH\" # set\nllama-server --port 8080", "sh")
+        #expect(shell.contains { $0 == ("export", .keyword) })
+        #expect(shell.contains { $0 == ("--port", .attribute) })
+        #expect(shell.contains { $0 == ("# set", .comment) })
+    }
+
+    @Test func jsonAndDiff() {
+        let json = kinds("{\"key\": \"value\", \"n\": 1.5, \"ok\": true}", "json")
+        #expect(json.contains { $0 == ("\"key\"", .property) })
+        #expect(json.contains { $0 == ("\"value\"", .string) })
+        #expect(json.contains { $0 == ("true", .literal) })
+        let diff = kinds("--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new", "diff")
+        #expect(diff.contains { $0 == ("-old", .deleted) })
+        #expect(diff.contains { $0 == ("+new", .inserted) })
+    }
+
+    @Test func unknownAndPlainLanguages() {
+        #expect(!SyntaxHighlighter.tokens(for: "x = \"s\" # c", language: "brainfudge").isEmpty)
+        #expect(SyntaxHighlighter.tokens(for: "plain text", language: "text").isEmpty)
+        #expect(SyntaxHighlighter.displayName("py") == "Python")
+        #expect(SyntaxHighlighter.isShell("zsh"))
+        #expect(SyntaxHighlighter.isPreviewable("svg"))
+    }
+
+    @Test func largeInputIsFast() {
+        let line = "for (let i = 0; i < 10; i++) { console.log(\"value\", i * 2); } // loop\n"
+        let code = String(repeating: line, count: 5000)
+        let start = Date()
+        let tokens = SyntaxHighlighter.tokens(for: code, language: "js")
+        #expect(tokens.count >= 40_000)
+        #expect(Date().timeIntervalSince(start) < 5)
+    }
+}
+
+@Suite("Prose row splitting")
+struct ProseSplittingTests {
+    @Test func longAnswersSplitIntoStableRows() {
+        let paragraph = String(repeating: "word ", count: 200) + "\n\n"  // ~1000 chars
+        var engine = IncrementalMarkdown()
+        var text = ""
+        var previous: [MarkdownRow] = []
+        for _ in 0..<12 {
+            text += paragraph
+            let rows = engine.update(text)
+            // Rows that existed before keep their IDs and frozen items.
+            for (old, new) in zip(previous.dropLast(), rows) {
+                #expect(old.id == new.id)
+                #expect(old.items.map(\.key) == new.items.prefix(old.items.count).map(\.key) || old.items.map(\.key) == new.items.map(\.key))
+            }
+            previous = rows
+        }
+        let final = engine.update(text, isFinal: true)
+        #expect(final.count >= 3)
+        #expect(final.allSatisfy { $0.kind == .prose })
     }
 }

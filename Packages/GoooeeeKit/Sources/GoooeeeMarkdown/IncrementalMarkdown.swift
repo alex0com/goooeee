@@ -14,6 +14,8 @@ public struct MarkdownRow: Identifiable, Sendable, Hashable {
         public var key: String
         public var block: MDBlock
         public var isFrozen: Bool
+        /// Plain-text length of frozen items (0 for the live tail).
+        public var length: Int
     }
 
     /// Ordinal within the message (`"0"`, `"1"`, …). Rows are only ever appended, so IDs stay stable while streaming.
@@ -40,8 +42,11 @@ public struct MarkdownRow: Identifiable, Sendable, Hashable {
 public struct IncrementalMarkdown: Sendable {
     public private(set) var source = ""
     private var frozenEnd: String.Index
-    private var frozenChunks: [[MDBlock]] = []
+    private var frozenChunks: [[(block: MDBlock, length: Int)]] = []
     private let options: MarkdownParser.Options
+    /// Prose rows are split after this many characters of frozen text, so a long answer
+    /// becomes several rows and per-frame layout stays bounded.
+    public static let maxProseRowLength = 4000
 
     public init(options: MarkdownParser.Options = .init()) {
         self.options = options
@@ -71,7 +76,7 @@ public struct IncrementalMarkdown: Sendable {
         if freezeUpTo > frozenEnd {
             let chunk = String(source[frozenEnd..<freezeUpTo])
             if !chunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                frozenChunks.append(MarkdownParser.parse(chunk, options: options))
+                frozenChunks.append(MarkdownParser.parse(chunk, options: options).map { ($0, $0.plainText.count) })
             }
             frozenEnd = freezeUpTo
         }
@@ -90,12 +95,12 @@ public struct IncrementalMarkdown: Sendable {
 
         var items: [MarkdownRow.Item] = []
         for (chunkIndex, blocks) in frozenChunks.enumerated() {
-            for (blockIndex, block) in blocks.enumerated() {
-                items.append(.init(key: "c\(chunkIndex).\(blockIndex)", block: block, isFrozen: true))
+            for (blockIndex, entry) in blocks.enumerated() {
+                items.append(.init(key: "c\(chunkIndex).\(blockIndex)", block: entry.block, isFrozen: true, length: entry.length))
             }
         }
         for (index, block) in tailBlocks.enumerated() {
-            items.append(.init(key: "t\(index)", block: block, isFrozen: false))
+            items.append(.init(key: "t\(index)", block: block, isFrozen: false, length: 0))
         }
         return Self.group(items)
     }
@@ -109,7 +114,9 @@ public struct IncrementalMarkdown: Sendable {
     static func group(_ items: [MarkdownRow.Item]) -> [MarkdownRow] {
         var rows: [MarkdownRow] = []
         var prose: [MarkdownRow.Item] = []
+        var proseLength = 0
         func flushProse() {
+            proseLength = 0
             guard !prose.isEmpty else { return }
             rows.append(MarkdownRow(id: String(rows.count), kind: .prose, items: prose))
             prose = []
@@ -126,7 +133,12 @@ public struct IncrementalMarkdown: Sendable {
                 flushProse()
                 rows.append(MarkdownRow(id: String(rows.count), kind: .math, items: [item]))
             default:
+                // Split long prose only at frozen items, so earlier rows never regroup.
+                if item.isFrozen, proseLength >= maxProseRowLength {
+                    flushProse()
+                }
                 prose.append(item)
+                proseLength += item.length
             }
         }
         flushProse()

@@ -283,3 +283,46 @@ public struct StreamAccumulator: Sendable {
         blocks.compactMap { if case .text(let text) = $0 { return text } else { return nil } }.joined()
     }
 }
+
+extension Message {
+    /// Applies a streaming change from the engine to the UI's copy of the message.
+    public mutating func apply(_ change: AccumulatorChange) {
+        switch change {
+        case .started(let completionID, let model):
+            if let completionID { self.completionID = completionID }
+            if let model, modelID == nil { modelID = model }
+        case .promptProgress:
+            break
+        case .blockAdded(let index, let block):
+            if index < blocks.count {
+                blocks[index] = block
+            } else {
+                blocks.append(block)
+            }
+        case .textAppended(let index, let text):
+            guard blocks.indices.contains(index) else { return }
+            switch blocks[index] {
+            case .text(let existing): blocks[index] = .text(existing + text)
+            case .thinking(let existing, let duration, let signature): blocks[index] = .thinking(existing + text, duration: duration, signature: signature)
+            }
+        case .blocksReplaced(let newBlocks):
+            blocks = newBlocks
+        case .thinkingFinished(let index, let duration):
+            guard blocks.indices.contains(index), case .thinking(let text, _, let signature) = blocks[index] else { return }
+            blocks[index] = .thinking(text, duration: duration, signature: signature)
+        case .toolCallsUpdated(let calls):
+            var merged = calls
+            for index in merged.indices {
+                if let existing = toolCalls.first(where: { $0.id == merged[index].id }) {
+                    merged[index].status = existing.status
+                    merged[index].sourceLabel = existing.sourceLabel
+                }
+            }
+            toolCalls = merged
+        case .metricsUpdated(let metrics):
+            self.metrics = metrics
+        case .finished:
+            break
+        }
+    }
+}

@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "GoooeeeCore", targets: ["GoooeeeCore"]),
         .library(name: "GoooeeeMarkdown", targets: ["GoooeeeMarkdown"]),
         .library(name: "GoooeeeMCP", targets: ["GoooeeeMCP"]),
+        .library(name: "GoooeeeTranscript", targets: ["GoooeeeTranscript"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.7.3"),
@@ -38,6 +39,14 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
                 .product(name: "Logging", package: "swift-log"),
             ]
+        ),
+        .target(
+            name: "GoooeeeTranscript",
+            dependencies: ["GoooeeeCore", "GoooeeeMarkdown"]
+        ),
+        .testTarget(
+            name: "GoooeeeTranscriptTests",
+            dependencies: ["GoooeeeTranscript"]
         ),
         .testTarget(
             name: "GoooeeeCoreTests",
