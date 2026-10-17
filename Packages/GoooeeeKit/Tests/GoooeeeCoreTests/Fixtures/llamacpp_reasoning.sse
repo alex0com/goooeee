@@ -1,0 +1,18 @@
+data: {"choices":[{"index":0,"delta":{},"finish_reason":null}],"id":"chatcmpl-llama","model":"qwen3-8b","prompt_progress":{"total":120,"cache":20,"processed":120,"time_ms":85.5}}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}],"id":"chatcmpl-llama","model":"qwen3-8b"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me "},"finish_reason":null}],"id":"chatcmpl-llama"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"think."},"finish_reason":null}],"id":"chatcmpl-llama"}
+
+data: {"choices":[{"index":0,"delta":{"content":"The answer "},"finish_reason":null}],"id":"chatcmpl-llama"}
+
+data: {"choices":[{"index":0,"delta":{"content":"is 4."},"finish_reason":null}],"id":"chatcmpl-llama"}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"id":"chatcmpl-llama","timings":{"cache_n":20,"prompt_n":100,"prompt_ms":50.0,"prompt_per_second":2000.0,"predicted_n":40,"predicted_ms":1000.0,"predicted_per_second":40.0}}
+
+data: {"choices":[],"id":"chatcmpl-llama","usage":{"prompt_tokens":120,"completion_tokens":40,"total_tokens":160}}
+
+data: [DONE]
+

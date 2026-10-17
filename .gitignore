@@ -1,0 +1,23 @@
+# macOS / Xcode
+.DS_Store
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SwiftPM
+.build/
+.swiftpm/
+Packages/GoooeeeKit/.build/
+Packages/GoooeeeKit/.swiftpm/
+
+# Local signing overrides (bundle ID, team)
+Config/Local.xcconfig
+
+# Python
+__pycache__/
+*.pyc

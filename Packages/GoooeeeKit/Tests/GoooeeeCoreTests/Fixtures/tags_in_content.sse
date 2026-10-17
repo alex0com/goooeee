@@ -1,0 +1,12 @@
+data: {"choices":[{"index":0,"delta":{"content":"<thi"}}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"nk>Reasoning "}}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"text</th"}}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"ink>\n\nVisible "}}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"answer."},"finish_reason":"stop"}]}
+
+data: [DONE]
+

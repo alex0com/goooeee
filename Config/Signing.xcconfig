@@ -1,0 +1,14 @@
+// Default signing for building goooeee from source without an Apple developer account.
+//
+// "Sign to Run Locally": ad-hoc signature, no team, placeholder bundle identifier.
+// To use your own bundle ID and team, copy Local.xcconfig.example to Local.xcconfig
+// (git-ignored) and fill it in. Values there override the ones below.
+
+PRODUCT_BUNDLE_IDENTIFIER = local.goooeee.app
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_ENTITLEMENTS = App/Resources/goooeee.entitlements
+ENABLE_HARDENED_RUNTIME = YES
+
+#include? "Local.xcconfig"
