@@ -1,0 +1,83 @@
+# XcodeGen spec for the goooeee app. Generate the project with:
+#
+#     xcodegen generate
+#
+# The generated goooeee.xcodeproj is committed too, so XcodeGen is only needed after
+# changing this file. Build settings live in Config/*.xcconfig.
+
+name: goooeee
+
+options:
+  bundleIdPrefix: local.goooeee
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: false
+  developmentLanguage: en
+
+packages:
+  GoooeeeKit:
+    path: Packages/GoooeeeKit
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.20.0
+  SwiftMath:
+    url: https://github.com/mgriebling/SwiftMath
+    exactVersion: 1.7.3
+
+configFiles:
+  Debug: Config/Shared.xcconfig
+  Release: Config/Shared.xcconfig
+
+targets:
+  goooeee:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: App
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: GoooeeeKit
+        product: GoooeeeCore
+      - package: GoooeeeKit
+        product: GoooeeeMarkdown
+      - package: GoooeeeKit
+        product: GoooeeeMCP
+      - package: GoooeeeKit
+        product: GoooeeeTranscript
+      - package: SwiftTerm
+        product: SwiftTerm
+      - package: SwiftMath
+        product: SwiftMath
+      - sdk: PDFKit.framework
+      - sdk: WebKit.framework
+      - sdk: Security.framework
+    settings:
+      base:
+        INFOPLIST_FILE: App/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Resources/goooeee.entitlements
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: -Onone
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: -O
+          SWIFT_COMPILATION_MODE: wholemodule
+
+schemes:
+  goooeee:
+    build:
+      targets:
+        goooeee: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+    profile:
+      config: Release
+    archive:
+      config: Release
