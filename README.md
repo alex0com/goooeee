@@ -8,6 +8,22 @@ goooeee is a native macOS chat application for large language models (LLMs). The
 
 goooeee connects to inference servers on your Mac or on a network. It does not run models. The server runs the model.
 
+## Download
+
+Download `goooeee-<version>.dmg` from the [latest release](https://github.com/alex0com/goooeee/releases/latest).
+
+1. Open the disk image.
+2. Drag **goooeee** to **Applications**.
+3. Start goooeee. macOS blocks the first start.
+4. Open **System Settings → Privacy & Security**.
+5. Click **Open Anyway** for goooeee.
+
+The application has an ad hoc signature. Apple did not notarize it. For this reason, macOS blocks the first start.
+
+The application needs macOS 26 or later. It runs on Apple silicon and on Intel.
+
+> **Early version.** Some functions are not fully tested. Report problems in [Issues](https://github.com/alex0com/goooeee/issues).
+
 ## Screenshots
 
 **1. Workspace window.** The left column shows the chats. The middle column shows a chat with model thinking and an image question. The right column shows the inspector.
