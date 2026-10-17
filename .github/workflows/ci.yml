@@ -50,7 +50,8 @@ jobs:
         shell: bash
         run: |
           xcodebuild -project goooeee.xcodeproj -scheme goooeee -configuration Debug \
-            -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build | tee build.log
+            -destination 'platform=macOS' -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO build | tee build.log
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v6

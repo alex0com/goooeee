@@ -37,7 +37,7 @@ final class UserMessageCell: TranscriptCellView {
     struct Layout {
         var tilesHeight: CGFloat
         var bubble: CGSize
-        var text: CGSize
+        var text: TextMeasurer.Size
         var height: CGFloat
     }
 

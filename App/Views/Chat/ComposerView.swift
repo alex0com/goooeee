@@ -301,7 +301,7 @@ struct ComposerView: View {
                     errors.append(error.localizedDescription)
                 }
             }
-            await MainActor.run {
+            await MainActor.run { [loaded, errors] in
                 controller.draft.attachments += loaded
                 isLoadingAttachment = false
                 if !errors.isEmpty { model.showError(errors.joined(separator: " ")) }

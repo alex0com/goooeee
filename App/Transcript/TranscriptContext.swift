@@ -277,8 +277,10 @@ final class TranscriptContext {
         return highlighter.attributedString(code: display, language: language, style: theme.codeStyle, rowID: rowID)
     }
 
-    func monospaced(_ text: String, key: String, color: NSColor = TranscriptColors.text, limit: Int = 12_000) -> NSAttributedString {
-        cachedString(key) {
+    /// `color` defaults to `TranscriptColors.text`.
+    func monospaced(_ text: String, key: String, color: NSColor? = nil, limit: Int = 12_000) -> NSAttributedString {
+        let color = color ?? TranscriptColors.text
+        return cachedString(key) {
             var shown = text
             if shown.utf16.count > limit {
                 shown = (shown as NSString).substring(to: limit) + "\n… (\(text.utf16.count - limit) more characters)"
