@@ -85,6 +85,14 @@ public struct ServerProbe: Sendable {
                     capabilities.audio = modalities.contains("audio")
                 }
             }
+        } else if engine == .genericOpenAI {
+            // llama.cpp (or a server built on it) saved as a plain OpenAI-compatible connection.
+            // Only what the model accepts is taken: its sampling defaults and template would change
+            // how this connection's settings resolve. Other servers answer 404, which changes nothing.
+            if let props = try? await llama.props() {
+                capabilities.vision = props.vision
+                capabilities.audio = props.audio
+            }
         }
 
         if engine.capabilities.supportsServerTools, let tools = try? await llama.tools() {

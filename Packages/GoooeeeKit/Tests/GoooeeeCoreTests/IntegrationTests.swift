@@ -129,6 +129,32 @@ struct IntegrationTests {
         #expect(try await client.applyTemplate(messages: [.text(.user, "hi")]).contains("<|im_start|>user"))
     }
 
+    @Test func genericConnectionReadsVisionFromLlamaCppProps() async throws {
+        let server = try #require(MockServerProcess(engine: "llamacpp", extra: ["--vision"]))
+        defer { server.stop() }
+        let probe = await ServerProbe(connection: connection(.genericOpenAI, server), apiKey: nil).probe()
+        #expect(probe.error == nil)
+        #expect(probe.status == .online)
+        #expect(probe.capabilities.vision == true)
+        // Only modalities: llama.cpp's sampling defaults and template stay out of generic connections.
+        #expect(probe.capabilities.defaultSampling.isEmpty)
+        #expect(probe.capabilities.chatTemplate == nil)
+
+        let textOnly = try #require(MockServerProcess(engine: "llamacpp"))
+        defer { textOnly.stop() }
+        let textProbe = await ServerProbe(connection: connection(.genericOpenAI, textOnly), apiKey: nil).probe()
+        #expect(textProbe.capabilities.vision == false)
+    }
+
+    @Test func genericConnectionWithoutPropsStaysUnknown() async throws {
+        let server = try #require(MockServerProcess(engine: "vllm"))
+        defer { server.stop() }
+        let probe = await ServerProbe(connection: connection(.genericOpenAI, server), apiKey: nil).probe()
+        #expect(probe.error == nil)
+        #expect(probe.status == .online)
+        #expect(probe.capabilities.vision == nil)
+    }
+
     @Test func discoveryDetectsVLLM() async throws {
         let server = try #require(MockServerProcess(engine: "vllm"))
         defer { server.stop() }
