@@ -409,7 +409,7 @@ final class TranscriptViewController: NSViewController, NSTableViewDataSource, N
         isProgrammaticScroll = true
         if view.inLiveResize {
             let visible = tableView.rows(in: tableView.visibleRect)
-            if let range = Range(visible) {
+            if let range = Range<Int>(visible) {
                 noteHeights(IndexSet(integersIn: range))
             }
             needsHeightRefreshAfterResize = true
@@ -505,8 +505,10 @@ final class TranscriptViewController: NSViewController, NSTableViewDataSource, N
         scrollToBottom()
     }
 
+    /// The first visible row and the rows above it, so the position survives when that row is replaced
+    /// (branch switch, deletion).
     private struct Anchor {
-        var rowID: String
+        var rowIDs: [String]
         var offset: CGFloat
     }
 
@@ -514,16 +516,21 @@ final class TranscriptViewController: NSViewController, NSTableViewDataSource, N
         let visible = scrollView.contentView.bounds
         let index = tableView.row(at: NSPoint(x: 1, y: max(0, visible.minY + scrollView.contentInsets.top + 1)))
         guard index >= 0, index < rows.count else { return nil }
-        return Anchor(rowID: rows[index].id, offset: visible.minY - tableView.rect(ofRow: index).minY)
+        let ids = rows[max(0, index - 20)...index].reversed().map(\.id)
+        return Anchor(rowIDs: ids, offset: visible.minY - tableView.rect(ofRow: index).minY)
     }
 
     private func restore(_ anchor: Anchor) -> Bool {
-        guard let index = rows.firstIndex(where: { $0.id == anchor.rowID }) else { return false }
-        if tableView.frame.height < tableView.rect(ofRow: rows.count - 1).maxY - 0.5 {
-            tableView.tile()
+        guard !rows.isEmpty else { return false }
+        for (position, id) in anchor.rowIDs.enumerated() {
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { continue }
+            if tableView.frame.height < tableView.rect(ofRow: rows.count - 1).maxY - 0.5 {
+                tableView.tile()
+            }
+            scroll(toY: tableView.rect(ofRow: index).minY + (position == 0 ? anchor.offset : 0))
+            return true
         }
-        scroll(toY: tableView.rect(ofRow: index).minY + anchor.offset)
-        return true
+        return false
     }
 
     // MARK: Older messages

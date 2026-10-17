@@ -33,6 +33,33 @@ label, a missing `@MainActor`, an optional to unwrap.
 | Terminal | `App/Views/Terminal/` | Medium: written against SwiftTerm 1.20.0's source |
 | Keychain, attachments | `App/Services/` | Low |
 
+## Known risks to check first
+
+Places the code makes assumptions it couldn't verify without the macOS SDK:
+
+- **SwiftMath** (`App/Transcript/MathRenderer.swift`): the `MathImage(latex:fontSize:textColor:labelMode:textAlignment:)`
+  initializer and `asImage()`. Everything is behind `#if canImport(SwiftMath)`, so removing the
+  package falls back to showing LaTeX source.
+- **Transcript table** (`TranscriptViewController.swift`): several remove/insert steps applied in
+  one `beginUpdates`/`endUpdates`, `rect(ofRow:)` used for scroll anchoring before the table
+  re-tiles, and `view.displayLink(target:selector:)` pacing `flush()`.
+- **TextKit 2**: `NSTextView(usingTextLayoutManager:)` on subclasses, and measured heights matching
+  what the cells draw.
+- **SwiftUI type-checking**: the optional-value `TextField` in the MCP server editor, `Table`
+  columns in the Workspaces window, `ForEach` over bindings in the key/value editors, and
+  `NSPanel` sizing in `ElicitationCenter`.
+- **Font bridging**: `NSFont` → SwiftUI `Font` is written as `Font(nsFont as CTFont)`.
+
+Transcript behavior that differs from the plan, on purpose:
+
+- Branch arrows are in each message's footer, not in the assistant header.
+- Editing an assistant message or showing its raw output happens in the footer row; the message's
+  markdown rows collapse while the editor is open.
+- Clicking an attachment opens it in its default app (not Quick Look yet).
+- Table cells aren't selectable; Copy and Copy as Markdown are on hover and in the context menu.
+- While thinking streams, only the last 6,000 characters show, as plain text; the full text is
+  rendered as markdown once thinking ends.
+
 ## Suggested order on the Mac
 
 1. `open goooeee.xcodeproj` (or `xcodegen generate` first if the project is missing). Let Xcode

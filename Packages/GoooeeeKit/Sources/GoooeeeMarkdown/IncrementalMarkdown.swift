@@ -42,7 +42,7 @@ public struct MarkdownRow: Identifiable, Sendable, Hashable {
 public struct IncrementalMarkdown: Sendable {
     public private(set) var source = ""
     private var frozenEnd: String.Index
-    private var frozenChunks: [[(block: MDBlock, length: Int)]] = []
+    private var frozenChunks: [(hash: String, blocks: [(block: MDBlock, length: Int)])] = []
     private let options: MarkdownParser.Options
     /// Prose rows are split after this many characters of frozen text, so a long answer
     /// becomes several rows and per-frame layout stays bounded.
@@ -76,7 +76,8 @@ public struct IncrementalMarkdown: Sendable {
         if freezeUpTo > frozenEnd {
             let chunk = String(source[frozenEnd..<freezeUpTo])
             if !chunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                frozenChunks.append(MarkdownParser.parse(chunk, options: options).map { ($0, $0.plainText.count) })
+                let blocks = MarkdownParser.parse(chunk, options: options).map { ($0, $0.plainText.count) }
+                frozenChunks.append((String(UInt(bitPattern: chunk.hashValue), radix: 36), blocks))
             }
             frozenEnd = freezeUpTo
         }
@@ -94,9 +95,10 @@ public struct IncrementalMarkdown: Sendable {
         }
 
         var items: [MarkdownRow.Item] = []
-        for (chunkIndex, blocks) in frozenChunks.enumerated() {
-            for (blockIndex, entry) in blocks.enumerated() {
-                items.append(.init(key: "c\(chunkIndex).\(blockIndex)", block: entry.block, isFrozen: true, length: entry.length))
+        // Frozen keys include a hash of their chunk, so edited text never reuses a cached rendering.
+        for (chunkIndex, chunk) in frozenChunks.enumerated() {
+            for (blockIndex, entry) in chunk.blocks.enumerated() {
+                items.append(.init(key: "c\(chunkIndex).\(blockIndex).\(chunk.hash)", block: entry.block, isFrozen: true, length: entry.length))
             }
         }
         for (index, block) in tailBlocks.enumerated() {

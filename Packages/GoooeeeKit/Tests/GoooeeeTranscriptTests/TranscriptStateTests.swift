@@ -51,6 +51,24 @@ struct TranscriptStateTests {
         }
     }
 
+    @Test func editedTextRedrawsItsRows() {
+        let first = user("Question", parent: nil, at: 1)
+        var reply = assistant([.text("First paragraph.\n\nSecond paragraph.")], parent: first.id, at: 2)
+        var state = TranscriptState()
+        _ = state.load(tree: MessageTree([first, reply]), leafID: reply.id)
+        let before = state.rows.filter { if case .markdown = $0.kind { true } else { false } }
+        // Same structure, different words: row IDs stay, so only the signature can show the change.
+        reply.setText("First paragraph.\n\nChanged paragraph.")
+        let update = state.update(messages: [reply], leafID: reply.id, streaming: [])
+        let after = state.rows.filter { if case .markdown = $0.kind { true } else { false } }
+        #expect(before.map(\.id) == after.map(\.id))
+        #expect(before.map(\.signature) != after.map(\.signature))
+        #expect(!update.reloaded.isEmpty)
+        if case .markdown(let old) = before[0].kind, case .markdown(let new) = after[0].kind {
+            #expect(old.row.items.map(\.key) != new.row.items.map(\.key))
+        }
+    }
+
     @Test func streamingUpdatesOnlyTouchTheTail() {
         let first = user("Question", parent: nil, at: 1)
         var reply = assistant([], parent: first.id, at: 2, state: .streaming)

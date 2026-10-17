@@ -56,7 +56,7 @@ struct TranscriptTheme {
         CodeHighlighter.Style(
             font: codeFont,
             textColor: TranscriptColors.text,
-            colors: Dictionary(uniqueKeysWithValues: SyntaxTokenKind.allCases.map { ($0, TranscriptColors.token($0)) }),
+            colors: TranscriptColors.tokenColors,
             generation: generation
         )
     }
@@ -99,8 +99,14 @@ enum TranscriptColors {
     static let warningBackground = dynamic(light: NSColor.systemOrange.withAlphaComponent(0.1), dark: NSColor.systemOrange.withAlphaComponent(0.16))
     static let editorBackground = NSColor.textBackgroundColor
 
-    /// Xcode-like colors in light mode, Atom One Dark-like colors in dark mode.
     static func token(_ kind: SyntaxTokenKind) -> NSColor {
+        tokenColors[kind] ?? text
+    }
+
+    static let tokenColors: [SyntaxTokenKind: NSColor] = Dictionary(uniqueKeysWithValues: SyntaxTokenKind.allCases.map { ($0, makeToken($0)) })
+
+    /// Xcode-like colors in light mode, Atom One Dark-like colors in dark mode.
+    private static func makeToken(_ kind: SyntaxTokenKind) -> NSColor {
         switch kind {
         case .keyword: dynamic(light: hex(0xAD3DA4), dark: hex(0xC678DD))
         case .string: dynamic(light: hex(0xC41A16), dark: hex(0x98C379))

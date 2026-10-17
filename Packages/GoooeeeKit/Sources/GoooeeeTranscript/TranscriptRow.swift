@@ -146,10 +146,14 @@ extension TranscriptRow {
             hasher.combine(row.items.count)
             hasher.combine(row.frozenPrefixCount)
             hasher.combine(isStreaming)
-            for item in row.items where !item.isFrozen {
-                hasher.combine(item.block)
+            for item in row.items {
+                // Frozen keys change with their content; only the live tail needs hashing in full.
+                if item.isFrozen {
+                    hasher.combine(item.key)
+                } else {
+                    hasher.combine(item.block)
+                }
             }
-            if let first = row.items.first, first.isFrozen { hasher.combine(first.key) }
         }
     }
 }
