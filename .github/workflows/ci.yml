@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
     container: swift:6.2-noble
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Python for the mock servers
-        run: apt-get update && apt-get install -y --no-install-recommends python3
+      - uses: actions/checkout@v6
+      - name: Install SQLite headers (GRDB) and Python (mock servers)
+        run: apt-get update && apt-get install -y --no-install-recommends libsqlite3-dev python3
       - name: Build
         working-directory: Packages/GoooeeeKit
         run: swift build --build-tests
@@ -36,7 +36,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.build_app
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.app || xcodebuild -version
       - name: Package tests
@@ -53,7 +53,7 @@ jobs:
             -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build | tee build.log
       - name: Upload build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: app-build-log
           path: build.log
