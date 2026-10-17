@@ -236,6 +236,24 @@ struct PromptTextView: NSViewRepresentable {
 final class ComposerTextView: NSTextView {
     weak var coordinator: PromptTextView.Coordinator?
     var placeholder = ""
+    private var showsPlaceholder = true
+
+    override var string: String {
+        didSet { placeholderVisibilityChanged() }
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        placeholderVisibilityChanged()
+    }
+
+    /// Typing redraws only the new characters, so the placeholder would stay under the text.
+    private func placeholderVisibilityChanged() {
+        let shows = string.isEmpty
+        guard shows != showsPlaceholder else { return }
+        showsPlaceholder = shows
+        needsDisplay = true
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
