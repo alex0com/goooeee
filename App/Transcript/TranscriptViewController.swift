@@ -140,12 +140,10 @@ final class TranscriptViewController: NSViewController, NSTableViewDataSource, N
             jumpButton.isHidden = true
             observeState()
         }
-        if controller.transcript.options != controller.makeOptions() {
-            controller.transcript.options = controller.makeOptions()
-            controller.sink = self
+        controller.sink = self
+        // Settings may have changed while this conversation was in the background.
+        if controller.isLoaded, controller.transcript.options != controller.makeOptions() {
             controller.rebuildTranscript()
-        } else {
-            controller.sink = self
         }
         updateDisplayLink()
     }

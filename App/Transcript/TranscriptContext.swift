@@ -242,14 +242,16 @@ final class TranscriptContext {
     /// Thinking text. While streaming only the tail is shown as plain text, so long reasoning stays cheap.
     func thinkingString(_ row: TranscriptRow, _ content: ThinkingContent) -> NSAttributedString {
         if content.isStreaming {
-            let limit = 6000
-            var text = content.text
-            if text.utf16.count > limit {
-                let tail = String((text as NSString).substring(from: text.utf16.count - limit))
-                let start = tail.firstIndex(of: "\n").map { tail.index(after: $0) } ?? tail.startIndex
-                text = "…\n" + tail[start...]
+            return cachedString("\(row.id)#\(row.signature)#live") {
+                let limit = 6000
+                var text = content.text
+                if text.utf16.count > limit {
+                    let tail = String((text as NSString).substring(from: text.utf16.count - limit))
+                    let start = tail.firstIndex(of: "\n").map { tail.index(after: $0) } ?? tail.startIndex
+                    text = "…\n" + tail[start...]
+                }
+                return renderer.plain(text.trimmingCharacters(in: .whitespacesAndNewlines), style: thinkingStyle)
             }
-            return renderer.plain(text.trimmingCharacters(in: .whitespacesAndNewlines), style: thinkingStyle)
         }
         return cachedString("\(row.id)#\(row.signature)") {
             let text = content.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -260,11 +262,9 @@ final class TranscriptContext {
         }
     }
 
+    /// Cached per signature, so the height pass and the cell share one render per frame.
     func proseString(_ row: TranscriptRow, _ content: MarkdownContent) -> NSAttributedString {
-        if content.isStreaming {
-            return renderer.renderProse(content.row, rowID: row.id, style: assistantStyle)
-        }
-        return cachedString("\(row.id)#\(row.signature)") {
+        cachedString("\(row.id)#\(row.signature)") {
             renderer.renderProse(content.row, rowID: row.id, style: assistantStyle)
         }
     }
@@ -380,6 +380,12 @@ final class TranscriptContext {
         focusEditor = true
         viewController?.refreshRows { $0.messageID == messageID }
         viewController?.scrollToEditor(messageID: messageID)
+    }
+
+    /// Leaves edit mode without touching the table (the conversation is being switched).
+    func cancelEditingSilently() {
+        editing = nil
+        focusEditor = false
     }
 
     func updateEditingText(_ text: String) {
