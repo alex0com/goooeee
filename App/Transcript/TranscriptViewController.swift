@@ -128,7 +128,7 @@ final class TranscriptViewController: NSViewController, NSTableViewDataSource, N
     /// Shows another conversation. The old controller stops receiving updates.
     func bind(_ controller: ChatController) {
         guard self.controller !== controller else { return }
-        self.controller?.sink = nil
+        releaseSink()
         context.cancelEditingSilently()
         self.controller = controller
         context.controller = controller
@@ -148,11 +148,21 @@ final class TranscriptViewController: NSViewController, NSTableViewDataSource, N
         updateDisplayLink()
     }
 
+    /// SwiftUI dismantles this view controller when the chat column's view changes (showing or hiding
+    /// the terminal), often after the replacement has already bound the same controller. Detach
+    /// completely, so this one neither unhooks the replacement nor reacts to its own teardown.
     func unbind() {
-        controller?.sink = nil
+        releaseSink()
+        controller = nil
+        context.controller = nil
         displayLink?.invalidate()
         displayLink = nil
         observationGeneration += 1
+    }
+
+    /// Stops updates from the current controller, unless another transcript has taken it over.
+    private func releaseSink() {
+        if controller?.sink === self { controller?.sink = nil }
     }
 
     // MARK: Observation
