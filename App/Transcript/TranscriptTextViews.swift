@@ -47,10 +47,63 @@ final class TranscriptTextView: NSTextView {
         return view
     }
 
+    /// Replaces only the part after the unchanged prefix, so a streaming row keeps the layout of its
+    /// earlier lines (and the selection in them).
     func setContent(_ string: NSAttributedString) {
         guard let storage = textStorage else { return }
-        if storage.length == string.length, storage.isEqual(to: string) { return }
-        storage.setAttributedString(string)
+        let prefix = Self.commonPrefixLength(storage, string)
+        guard prefix < storage.length || prefix < string.length else { return }
+        storage.beginEditing()
+        storage.replaceCharacters(
+            in: NSRange(location: prefix, length: storage.length - prefix),
+            with: string.attributedSubstring(from: NSRange(location: prefix, length: string.length - prefix))
+        )
+        storage.endEditing()
+        needsFullLayout = true
+        ensureFullLayoutIfNeeded()
+    }
+
+    /// Length of the leading part that has the same characters and attributes in both strings.
+    static func commonPrefixLength(_ a: NSAttributedString, _ b: NSAttributedString) -> Int {
+        guard a.length > 0, b.length > 0 else { return 0 }
+        var length = (a.string as NSString).commonPrefix(with: b.string, options: .literal).utf16.count
+        var location = 0
+        while location < length {
+            let limit = NSRange(location: 0, length: length)
+            var rangeA = NSRange()
+            var rangeB = NSRange()
+            let attributesA = a.attributes(at: location, longestEffectiveRange: &rangeA, in: limit)
+            let attributesB = b.attributes(at: location, longestEffectiveRange: &rangeB, in: limit)
+            if !NSDictionary(dictionary: attributesA).isEqual(to: attributesB) {
+                length = location
+                break
+            }
+            location = min(NSMaxRange(rangeA), NSMaxRange(rangeB))
+        }
+        return length
+    }
+
+    // MARK: Layout
+
+    /// TextKit 2 lays out only the visible part and estimates the position of everything above it.
+    /// In a tall row (long thinking or answer, scrolled to its end) the estimate is off by
+    /// hundreds or thousands of points, so the visible lines jump on every update or are drawn
+    /// outside the view. Laying out the whole text gives exact positions; after an append only
+    /// the new tail is actually laid out.
+    private var needsFullLayout = false
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = abs(newSize.width - frame.width) > 0.5
+        super.setFrameSize(newSize)
+        if widthChanged { needsFullLayout = true }
+        ensureFullLayoutIfNeeded()
+    }
+
+    private func ensureFullLayoutIfNeeded() {
+        // Before the cell sizes the view the width is 0; layout at that width would be thrown away.
+        guard needsFullLayout, frame.width > 1, let layoutManager = textLayoutManager else { return }
+        needsFullLayout = false
+        layoutManager.ensureLayout(for: layoutManager.documentRange)
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

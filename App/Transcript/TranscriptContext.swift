@@ -241,13 +241,19 @@ final class TranscriptContext {
     }
 
     /// Thinking text. While streaming only the tail is shown as plain text, so long reasoning stays cheap.
+    /// The tail's start moves in steps rather than on every update, so between steps the text view
+    /// only appends (see `TranscriptTextView.setContent`).
     func thinkingString(_ row: TranscriptRow, _ content: ThinkingContent) -> NSAttributedString {
         if content.isStreaming {
             return cachedString("\(row.id)#\(row.signature)#live") {
                 let limit = 6000
+                let step = 1500
                 var text = content.text
-                if text.utf16.count > limit {
-                    let tail = String((text as NSString).substring(from: text.utf16.count - limit))
+                let length = text.utf16.count
+                if length > limit {
+                    let nsText = text as NSString
+                    let cut = nsText.rangeOfComposedCharacterSequence(at: ((length - limit) / step + 1) * step).location
+                    let tail = nsText.substring(from: cut)
                     let start = tail.firstIndex(of: "\n").map { tail.index(after: $0) } ?? tail.startIndex
                     text = "…\n" + tail[start...]
                 }
