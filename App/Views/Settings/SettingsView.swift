@@ -475,7 +475,7 @@ private struct AdvancedSettingsTab: View {
             } header: {
                 Text("Model output")
             } footer: {
-                Text("Some models (e.g. MiniMax M2) expect their earlier thinking back; their profiles keep it whatever this says.")
+                Text("Some models expect their earlier thinking back; profiles that say so keep it whatever this says.")
                     .foregroundStyle(.secondary)
             }
             Section("Data") {
