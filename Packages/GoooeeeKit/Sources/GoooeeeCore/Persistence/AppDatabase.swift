@@ -79,6 +79,9 @@ public final class AppDatabase: Sendable {
                 CREATE VIRTUAL TABLE message_fts USING fts5(body, messageID UNINDEXED, conversationID UNINDEXED, workspaceID UNINDEXED, tokenize = 'unicode61');
                 """)
         }
+        migrator.registerMigration("v2-hidden-profiles") { db in
+            try db.execute(sql: "CREATE TABLE hidden_profile (id TEXT PRIMARY KEY)")
+        }
         return migrator
     }
 }
@@ -181,6 +184,22 @@ extension AppDatabase {
             try db.execute(sql: "DELETE FROM custom_profile")
             for (id, data) in rows {
                 try db.execute(sql: "INSERT INTO custom_profile (id, json) VALUES (?, ?)", arguments: [id, data])
+            }
+        }
+    }
+
+    /// Built-in profiles the user deleted.
+    public func hiddenProfileIDs() async throws -> Set<String> {
+        try await writer.read { db in
+            Set(try String.fetchAll(db, sql: "SELECT id FROM hidden_profile"))
+        }
+    }
+
+    public func saveHiddenProfileIDs(_ ids: Set<String>) async throws {
+        try await writer.write { db in
+            try db.execute(sql: "DELETE FROM hidden_profile")
+            for id in ids.sorted() {
+                try db.execute(sql: "INSERT INTO hidden_profile (id) VALUES (?)", arguments: [id])
             }
         }
     }

@@ -190,6 +190,7 @@ struct AnthropicRequestBuilderTests {
 struct SettingsResolverTests {
     @Test func precedenceAndProvenance() throws {
         var connection = ServerConnection.preset(.llamaCpp)
+        connection.defaultsPolicy = .profileFirst
         connection.sampling[.topK] = .int(30)
         let profile = registry.profile(id: "qwen3")!
         let resolver = SettingsResolver(
@@ -212,8 +213,8 @@ struct SettingsResolverTests {
     }
 
     @Test func serverFirstPolicy() throws {
-        var connection = ServerConnection.preset(.llamaCpp)
-        connection.defaultsPolicy = .serverFirst
+        let connection = ServerConnection.preset(.llamaCpp)
+        #expect(connection.defaultsPolicy == .serverFirst, "new connections trust the server's defaults")
         let resolver = SettingsResolver(connection: connection, profile: registry.profile(id: "qwen3")!,
                                         serverDefaults: SamplingSettings([.temperature: .double(0.8)]))
         let effective = try resolver.resolve()
@@ -261,6 +262,9 @@ struct SettingsResolverTests {
 @Suite("Model profiles")
 struct ModelProfileTests {
     @Test(arguments: [
+        ("unsloth/Qwen3.8-27B-GGUF", "qwen3.5"),
+        ("Qwen3.8-Flash-Next-MLX-Serve-mixed-4-8bit", "qwen3.5"),
+        ("Qwen/Qwen3.5-397B-A17B", "qwen3.5"),
         ("Qwen/Qwen3-Coder-30B-A3B-Instruct", "qwen3-coder"),
         ("unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF", "qwen3-thinking"),
         ("Qwen3-235B-A22B-Instruct-2507", "qwen3-instruct"),
@@ -287,6 +291,30 @@ struct ModelProfileTests {
         #expect(local.match(modelID: "qwen3-8b")?.id == "mine")
         #expect(local.resolve(modelID: "unknown-model", explicitID: nil).id == "generic")
         #expect(local.resolve(modelID: "qwen3", explicitID: "gpt-oss").id == "gpt-oss")
+    }
+
+    @Test func customProfileReplacesBuiltIn() {
+        var replacement = registry.profile(id: "qwen3")!
+        replacement.sampling = ProfileSampling(standard: SamplingSettings([.temperature: .double(0.3)]))
+        var local = registry
+        local.setCustom([replacement])
+        #expect(local.replacesBuiltIn("qwen3"))
+        #expect(local.visibleBuiltIn.contains { $0.id == "qwen3" } == false)
+        #expect(local.all.filter { $0.id == "qwen3" }.count == 1)
+        #expect(local.profile(id: "qwen3")?.isCustom == true)
+        #expect(local.match(modelID: "qwen3-8b")?.sampling.standard?[.temperature] == .double(0.3))
+    }
+
+    @Test func hiddenBuiltInStopsMatching() {
+        var local = registry
+        local.setHiddenBuiltInIDs(["qwen3"])
+        #expect(local.hiddenBuiltIn.map(\.id) == ["qwen3"])
+        #expect(local.profile(id: "qwen3") == nil)
+        #expect(local.resolve(modelID: "qwen3-8b", explicitID: "qwen3").id == "generic")
+        #expect(local.match(modelID: "qwen3-8b") == nil)
+        #expect(local.match(modelID: "Qwen3.8-27B")?.id == "qwen3.5")
+        local.setHiddenBuiltInIDs([])
+        #expect(local.match(modelID: "qwen3-8b")?.id == "qwen3")
     }
 
     @Test func bundledProfilesDecode() {

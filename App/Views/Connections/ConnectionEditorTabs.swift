@@ -210,6 +210,7 @@ struct ConnectionSamplingTab: View {
     var apiKey: String
     @Environment(AppModel.self) private var app
     @State private var serverDefaults = SamplingSettings()
+    @State private var serverModelID: String?
     @State private var probed = false
 
     var body: some View {
@@ -222,14 +223,39 @@ struct ConnectionSamplingTab: View {
         }
         .formStyle(.grouped)
         .task { await probeServerDefaults() }
+        .onAppear {
+            // A deleted or renamed profile falls back to auto-detect rather than a blank picker.
+            if let id = draft.profileID, app.profiles.profile(id: id) == nil { draft.profileID = nil }
+        }
     }
 
     private var profile: ModelProfile {
-        app.profiles.resolve(modelID: draft.defaultModelID, explicitID: draft.profileID)
+        app.profiles.resolve(modelID: detectionModelID, explicitID: draft.profileID)
     }
 
-    private var detectedProfile: ModelProfile {
-        app.profiles.resolve(modelID: draft.defaultModelID, explicitID: nil)
+    /// The model auto-detect looks at: the default model, else the model the server has loaded.
+    private var detectionModelID: String? {
+        draft.defaultModelID ?? serverModelID
+    }
+
+    private var detectedProfile: ModelProfile? {
+        detectionModelID.flatMap { app.profiles.match(modelID: $0) }
+    }
+
+    private var autoDetectLabel: String {
+        guard detectionModelID != nil else { return "Auto-detect (by model name)" }
+        return "Auto-detect (\(detectedProfile?.displayName ?? "Generic"))"
+    }
+
+    private var detectionNote: String {
+        guard let modelID = detectionModelID else {
+            return "Auto-detect picks the profile from each workspace's model name; no model is known yet."
+        }
+        let name = ModelNameFormatter.shortName(modelID)
+        if let detectedProfile {
+            return "Auto-detect matched “\(name)” to \(detectedProfile.displayName)."
+        }
+        return "No profile matches “\(name)”; Generic sends no recommended values."
     }
 
     private var effective: EffectiveSettings? {
@@ -239,7 +265,7 @@ struct ConnectionSamplingTab: View {
     private var profileSection: some View {
         Section {
             Picker("Model profile", selection: $draft.profileID) {
-                Text("Auto-detect (\(detectedProfile.displayName))").tag(String?.none)
+                Text(autoDetectLabel).tag(String?.none)
                 Divider()
                 ForEach(app.profiles.all) { profile in
                     Text(profile.displayName + (profile.isCustom ? " (custom)" : "")).tag(Optional(profile.id))
@@ -253,8 +279,13 @@ struct ConnectionSamplingTab: View {
         } header: {
             Text("Model profile")
         } footer: {
-            Text("A profile holds the model family's recommended sampling and how it marks its reasoning. Values you leave unset come from the profile or the server, in the order chosen above.")
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                if draft.profileID == nil {
+                    Text(detectionNote)
+                }
+                Text("A profile holds the model family's recommended sampling and how it marks its reasoning. Values you leave unset come from the server or the profile, in the order chosen above.")
+            }
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -328,6 +359,8 @@ struct ConnectionSamplingTab: View {
         let probe = ServerProbe(connection: draft, apiKey: apiKey.isEmpty ? nil : apiKey)
         let result = await probe.probe(modelID: draft.defaultModelID)
         serverDefaults = result.capabilities.defaultSampling
+        let models = result.capabilities.models
+        serverModelID = (models.first { $0.loadState == .loaded } ?? models.first)?.id
         probed = true
     }
 }

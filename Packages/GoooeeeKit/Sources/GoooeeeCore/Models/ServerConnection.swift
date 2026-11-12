@@ -47,14 +47,15 @@ public struct ChatTemplate: Codable, Sendable, Hashable {
     }
 }
 
-/// Which default wins when the user hasn't set a value: the model profile or the server's reported default.
+/// Which default wins when the user hasn't set a value: the server's reported default or the model profile.
 ///
+/// The server is the source of truth by default: it knows the loaded model and its
+/// `generation_config.json`, while a profile is a curated guess from the model's name. Note that
 /// llama.cpp's `/props` reports its built-in defaults (e.g. temperature 0.8) even when the server
-/// was started without sampling flags, so by default the curated profile wins and the server
-/// value is shown for reference.
+/// was started without sampling flags; choose "Model profile, then server" to prefer the profile.
 public enum DefaultsPolicy: String, Codable, Sendable, CaseIterable, Hashable {
-    case profileFirst
     case serverFirst
+    case profileFirst
 
     public var label: String {
         switch self {
@@ -116,7 +117,7 @@ public struct ServerConnection: Identifiable, Codable, Sendable, Hashable {
         extraHeaders: [String: String] = [:],
         defaultModelID: String? = nil,
         profileID: String? = nil,
-        defaultsPolicy: DefaultsPolicy = .profileFirst,
+        defaultsPolicy: DefaultsPolicy = .serverFirst,
         sampling: SamplingSettings = SamplingSettings(),
         thinking: ThinkingSettings = ThinkingSettings(),
         systemPrompt: String? = nil,

@@ -3,7 +3,8 @@ import GoooeeeCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Model profiles: built-in ones are read-only; custom ones are edited as JSON and win over built-ins.
+/// Model profiles, edited as JSON. Editing a built-in makes a custom copy with the same id that replaces
+/// it; deleting a built-in hides it until restored. Custom profiles are matched before built-ins.
 struct ProfilesSettingsTab: View {
     @Environment(AppModel.self) private var app
     @State private var selection: ProfileSelection?
@@ -22,9 +23,7 @@ struct ProfilesSettingsTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
-            if selection == nil, let first = app.profiles.custom.first ?? app.profiles.builtIn.first {
-                select(ProfileSelection(id: first.id, isCustom: first.isCustom))
-            }
+            if selection == nil { selectFirst() }
         }
         .alert("Profiles", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button("OK", role: .cancel) {}
@@ -46,7 +45,7 @@ struct ProfilesSettingsTab: View {
                     }
                 }
                 Section("Built-in") {
-                    ForEach(app.profiles.builtIn) { profile in
+                    ForEach(app.profiles.visibleBuiltIn) { profile in
                         Text(profile.displayName).tag(ProfileSelection(id: profile.id, isCustom: false))
                     }
                 }
@@ -64,6 +63,9 @@ struct ProfilesSettingsTab: View {
                     Button("Import Profiles…") { importProfiles() }
                     Button("Export Custom Profiles…") { exportProfiles() }
                         .disabled(app.profiles.custom.isEmpty)
+                    Divider()
+                    Button("Restore Deleted Built-in Profiles (\(app.profiles.hiddenBuiltIn.count))") { restoreHidden() }
+                        .disabled(app.profiles.hiddenBuiltIn.isEmpty)
                 } label: {
                     Image(systemName: "ellipsis.circle").frame(width: 20, height: 18)
                 }
@@ -94,13 +96,7 @@ struct ProfilesSettingsTab: View {
                 } else {
                     MonospacedBlock(text: Self.json(for: profile))
                         .frame(maxHeight: .infinity)
-                    HStack {
-                        Text("Built-in profiles can't be edited. Duplicate one to change it; a custom profile with the same patterns wins.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Duplicate as Custom") { duplicate(profile) }
-                    }
+                    builtInActions(profile)
                 }
                 Divider()
                 matchTester
@@ -115,7 +111,7 @@ struct ProfilesSettingsTab: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(profile.displayName).font(.title3.weight(.semibold))
-                Text(profile.isCustom ? "Custom" : "Built-in")
+                Text(badge(for: profile))
                     .font(.caption2.weight(.medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
@@ -136,6 +132,30 @@ struct ProfilesSettingsTab: View {
         }
     }
 
+    private func badge(for profile: ModelProfile) -> String {
+        guard profile.isCustom else { return "Built-in" }
+        return app.profiles.replacesBuiltIn(profile.id) ? "Custom · replaces built-in" : "Custom"
+    }
+
+    private func builtInActions(_ profile: ModelProfile) -> some View {
+        HStack {
+            Button("Delete…", role: .destructive) { confirmDelete = true }
+            Spacer()
+            Text("Edit makes a copy that replaces this profile. Delete stops it from matching models.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Duplicate") { duplicate(profile) }
+            Button("Edit") { override(profile) }
+                .buttonStyle(.borderedProminent)
+        }
+        .confirmationDialog("Delete the built-in profile “\(profile.displayName)”?", isPresented: $confirmDelete) {
+            Button("Delete", role: .destructive) { hide(profile) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Models it matched fall back to the next profile or Generic. You can restore deleted built-ins from the ••• menu.")
+        }
+    }
+
     private func customActions(_ profile: ModelProfile) -> some View {
         HStack {
             Button("Delete…", role: .destructive) { confirmDelete = true }
@@ -150,6 +170,10 @@ struct ProfilesSettingsTab: View {
         .confirmationDialog("Delete the profile “\(profile.displayName)”?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { delete(profile) }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            if app.profiles.replacesBuiltIn(profile.id) {
+                Text("The built-in profile it replaces comes back.")
+            }
         }
     }
 
@@ -178,6 +202,14 @@ struct ProfilesSettingsTab: View {
         if let profile = profile(for: value) { editorText = Self.json(for: profile) }
     }
 
+    private func selectFirst() {
+        if let first = app.profiles.all.first {
+            select(ProfileSelection(id: first.id, isCustom: first.isCustom))
+        } else {
+            selection = nil
+        }
+    }
+
     static func json(for profile: ModelProfile) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -186,7 +218,7 @@ struct ProfilesSettingsTab: View {
     }
 
     private func uniqueID(_ base: String) -> String {
-        let taken = Set(app.profiles.all.map(\.id))
+        let taken = Set((app.profiles.builtIn + app.profiles.custom).map(\.id))
         var id = base
         var counter = 2
         while taken.contains(id) {
@@ -214,6 +246,27 @@ struct ProfilesSettingsTab: View {
         copy.displayName = profile.displayName + " (custom)"
         copy.isCustom = true
         save(app.profiles.custom + [copy], select: copy.id)
+    }
+
+    /// A custom copy with the same id, which replaces the built-in everywhere it's used.
+    private func override(_ profile: ModelProfile) {
+        var copy = profile
+        copy.isCustom = true
+        save(app.profiles.custom + [copy], select: copy.id)
+    }
+
+    private func hide(_ profile: ModelProfile) {
+        Task {
+            await app.setHiddenBuiltInProfiles(app.profiles.hiddenBuiltInIDs.union([profile.id]))
+            selectFirst()
+        }
+    }
+
+    private func restoreHidden() {
+        Task {
+            await app.setHiddenBuiltInProfiles([])
+            if selection == nil { selectFirst() }
+        }
     }
 
     private func saveEdited(originalID: String) {
@@ -246,10 +299,10 @@ struct ProfilesSettingsTab: View {
         let remaining = app.profiles.custom.filter { $0.id != profile.id }
         Task {
             await app.saveCustomProfiles(remaining)
-            if let first = app.profiles.custom.first ?? app.profiles.builtIn.first {
-                select(ProfileSelection(id: first.id, isCustom: first.isCustom))
+            if app.profiles.replacesBuiltIn(profile.id) {
+                select(ProfileSelection(id: profile.id, isCustom: false))
             } else {
-                selection = nil
+                selectFirst()
             }
         }
     }

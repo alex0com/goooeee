@@ -170,19 +170,23 @@ public struct ModelProfile: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
-/// Built-in profiles (bundled JSON) plus the user's custom profiles. Custom profiles win.
+/// Built-in profiles (bundled JSON) plus the user's custom profiles. Custom profiles win; a custom
+/// profile with a built-in's id replaces it, and built-ins the user deleted are hidden until restored.
 public struct ProfileRegistry: Sendable {
     public private(set) var builtIn: [ModelProfile]
     public private(set) var custom: [ModelProfile]
+    public private(set) var hiddenBuiltInIDs: Set<String>
 
-    public init(builtIn: [ModelProfile], custom: [ModelProfile] = []) {
+    public init(builtIn: [ModelProfile], custom: [ModelProfile] = [], hiddenBuiltInIDs: Set<String> = []) {
         self.builtIn = builtIn
-        self.custom = custom
+        self.custom = []
+        self.hiddenBuiltInIDs = hiddenBuiltInIDs
+        setCustom(custom)
     }
 
     /// Loads the bundled `model-profiles.json`.
-    public static func bundled(custom: [ModelProfile] = []) -> ProfileRegistry {
-        ProfileRegistry(builtIn: loadBundledProfiles(), custom: custom)
+    public static func bundled(custom: [ModelProfile] = [], hiddenBuiltInIDs: Set<String> = []) -> ProfileRegistry {
+        ProfileRegistry(builtIn: loadBundledProfiles(), custom: custom, hiddenBuiltInIDs: hiddenBuiltInIDs)
     }
 
     public static func loadBundledProfiles() -> [ModelProfile] {
@@ -204,7 +208,24 @@ public struct ProfileRegistry: Sendable {
         return try encoder.encode(File(profiles: profiles))
     }
 
-    public var all: [ModelProfile] { custom + builtIn }
+    /// Built-in profiles that are neither replaced by a custom profile nor deleted.
+    public var visibleBuiltIn: [ModelProfile] {
+        let replaced = Set(custom.map(\.id))
+        return builtIn.filter { !replaced.contains($0.id) && !hiddenBuiltInIDs.contains($0.id) }
+    }
+
+    /// The profiles in effect: custom ones, then the built-ins they don't replace.
+    public var all: [ModelProfile] { custom + visibleBuiltIn }
+
+    /// Built-ins the user deleted.
+    public var hiddenBuiltIn: [ModelProfile] {
+        builtIn.filter { hiddenBuiltInIDs.contains($0.id) }
+    }
+
+    /// Whether a custom profile replaces a built-in with the same id.
+    public func replacesBuiltIn(_ id: String) -> Bool {
+        builtIn.contains { $0.id == id }
+    }
 
     public func profile(id: String) -> ModelProfile? {
         all.first { $0.id == id }
@@ -228,5 +249,9 @@ public struct ProfileRegistry: Sendable {
             profile.isCustom = true
             return profile
         }
+    }
+
+    public mutating func setHiddenBuiltInIDs(_ ids: Set<String>) {
+        hiddenBuiltInIDs = ids
     }
 }

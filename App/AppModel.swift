@@ -50,9 +50,10 @@ final class AppModel {
             connections = try await database.connections()
             workspaces = try await database.workspaces()
             mcpServers = try await database.mcpServers()
-            var registry = ProfileRegistry.bundled()
-            registry.setCustom(try await database.customProfiles())
-            profiles = registry
+            profiles = ProfileRegistry.bundled(
+                custom: try await database.customProfiles(),
+                hiddenBuiltInIDs: try await database.hiddenProfileIDs()
+            )
         } catch {
             startupError = error.localizedDescription
         }
@@ -233,8 +234,16 @@ final class AppModel {
 
     func saveCustomProfiles(_ profiles: [ModelProfile]) async {
         try? await database.saveCustomProfiles(profiles)
-        var registry = ProfileRegistry.bundled()
+        var registry = self.profiles
         registry.setCustom(profiles)
+        self.profiles = registry
+    }
+
+    /// Hides (or restores) built-in profiles. A hidden built-in no longer matches models or appears in lists.
+    func setHiddenBuiltInProfiles(_ ids: Set<String>) async {
+        try? await database.saveHiddenProfileIDs(ids)
+        var registry = self.profiles
+        registry.setHiddenBuiltInIDs(ids)
         self.profiles = registry
     }
 

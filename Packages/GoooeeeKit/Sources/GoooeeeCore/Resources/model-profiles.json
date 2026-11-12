@@ -1,6 +1,20 @@
 {
   "profiles": [
     {
+      "id": "qwen3.5",
+      "displayName": "Qwen3.5 and later",
+      "match": ["qwen-?3\\.[5-9]"],
+      "reasoning": { "format": "tags", "open": "<think>", "close": "</think>", "mayStartInside": true },
+      "thinkingControl": { "chatTemplateKwarg": "enable_thinking" },
+      "sampling": {
+        "thinking": { "temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0 },
+        "nonThinking": { "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0 }
+      },
+      "vision": true,
+      "tools": true,
+      "source": "Qwen3.5 model card; Qwen3.8 generation_config.json (temperature 1.0, top_p 0.95, top_k 20)"
+    },
+    {
       "id": "qwen3-coder",
       "displayName": "Qwen3 Coder",
       "match": ["qwen3-?coder"],
