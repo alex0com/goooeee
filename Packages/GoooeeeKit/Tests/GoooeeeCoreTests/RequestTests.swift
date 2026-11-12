@@ -2,7 +2,30 @@ import Foundation
 import Testing
 @testable import GoooeeeCore
 
-private let registry = ProfileRegistry.bundled()
+/// Profiles no longer bundled, kept here as fixtures for the thinking translator and resolver tests.
+private let legacyProfiles: [ModelProfile] = [
+    ModelProfile(
+        id: "qwen3", displayName: "Qwen3", match: ["qwen3", "qwen-3"],
+        reasoning: .tags(open: "<think>", close: "</think>", mayStartInside: false),
+        thinkingControl: ThinkingControl(chatTemplateKwarg: "enable_thinking", softSwitch: ["/think", "/no_think"]),
+        sampling: ProfileSampling(
+            thinking: SamplingSettings([.temperature: .double(0.6), .topP: .double(0.95), .topK: .int(20), .minP: .double(0.0)]),
+            nonThinking: SamplingSettings([.temperature: .double(0.7), .topP: .double(0.8), .topK: .int(20), .minP: .double(0.0)])
+        ),
+        tools: true
+    ),
+    ModelProfile(
+        id: "gpt-oss", displayName: "gpt-oss", match: ["gpt-oss"],
+        reasoning: .harmony,
+        thinkingControl: ThinkingControl(reasoningEffort: true, alwaysThinks: true),
+        sampling: ProfileSampling(standard: SamplingSettings([.temperature: .double(1.0), .topP: .double(1.0)])),
+        tools: true
+    ),
+]
+
+/// The bundled profiles followed by the legacy fixtures, so bundled patterns still win.
+private let registry = ProfileRegistry(builtIn: ProfileRegistry.loadBundledProfiles() + legacyProfiles)
+private let bundled = ProfileRegistry.bundled()
 
 private func settings(_ values: [SamplingKey: SamplingValue] = [:], thinking: ThinkingLevel = .default, profile: String? = nil, extra: JSONValue? = nil) -> EffectiveSettings {
     var settings = EffectiveSettings(profile: profile.flatMap(registry.profile(id:)) ?? .generic)
@@ -265,22 +288,20 @@ struct ModelProfileTests {
         ("unsloth/Qwen3.8-27B-GGUF", "qwen3.5"),
         ("Qwen3.8-Flash-Next-MLX-Serve-mixed-4-8bit", "qwen3.5"),
         ("Qwen/Qwen3.5-397B-A17B", "qwen3.5"),
-        ("Qwen/Qwen3-Coder-30B-A3B-Instruct", "qwen3-coder"),
-        ("unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF", "qwen3-thinking"),
-        ("Qwen3-235B-A22B-Instruct-2507", "qwen3-instruct"),
-        ("mlx-community/Qwen3-32B-4bit", "qwen3"),
-        ("qwen3-8b-q4_k_m.gguf", "qwen3"),
-        ("Qwen/Qwen3-VL-8B-Instruct", "qwen3-vl"),
-        ("openai/gpt-oss-20b", "gpt-oss"),
-        ("google/gemma-3-1b-it", "gemma-3-1b"),
-        ("gemma-3-27b-it-qat", "gemma-3"),
-        ("deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "deepseek-r1"),
         ("deepseek-v4-flash", "deepseek-v4"),
-        ("mistralai/Magistral-Small-2509", "magistral"),
-        ("llava-v1.6-mistral-7b", "vision-generic"),
+        ("zai-org/GLM-5", "glm"),
+        ("GLM-4.6V-Flash", "glm-v"),
+        ("moonshotai/Kimi-K2-Thinking", "kimi-k2-thinking"),
+        ("Kimi-K2-Instruct-0905", "kimi-k2"),
     ])
     func matching(modelID: String, expected: String) {
-        #expect(registry.match(modelID: modelID)?.id == expected)
+        #expect(bundled.match(modelID: modelID)?.id == expected)
+    }
+
+    @Test(arguments: ["mlx-community/Qwen3-32B-4bit", "google/gemma-3-1b-it", "openai/gpt-oss-20b", "llava-v1.6-mistral-7b"])
+    func olderFamiliesFallBackToGeneric(modelID: String) {
+        #expect(bundled.match(modelID: modelID) == nil)
+        #expect(bundled.resolve(modelID: modelID, explicitID: nil).id == "generic")
     }
 
     @Test func customProfilesWin() {
@@ -288,38 +309,37 @@ struct ModelProfileTests {
         custom.sampling = ProfileSampling(standard: SamplingSettings([.temperature: .double(0.1)]))
         var local = registry
         local.setCustom([custom])
-        #expect(local.match(modelID: "qwen3-8b")?.id == "mine")
+        #expect(local.match(modelID: "qwen3.8-8b")?.id == "mine")
         #expect(local.resolve(modelID: "unknown-model", explicitID: nil).id == "generic")
-        #expect(local.resolve(modelID: "qwen3", explicitID: "gpt-oss").id == "gpt-oss")
+        #expect(local.resolve(modelID: "qwen3.8", explicitID: "kimi-k2").id == "kimi-k2")
     }
 
     @Test func customProfileReplacesBuiltIn() {
-        var replacement = registry.profile(id: "qwen3")!
+        var replacement = registry.profile(id: "kimi-k2")!
         replacement.sampling = ProfileSampling(standard: SamplingSettings([.temperature: .double(0.3)]))
         var local = registry
         local.setCustom([replacement])
-        #expect(local.replacesBuiltIn("qwen3"))
-        #expect(local.visibleBuiltIn.contains { $0.id == "qwen3" } == false)
-        #expect(local.all.filter { $0.id == "qwen3" }.count == 1)
-        #expect(local.profile(id: "qwen3")?.isCustom == true)
-        #expect(local.match(modelID: "qwen3-8b")?.sampling.standard?[.temperature] == .double(0.3))
+        #expect(local.replacesBuiltIn("kimi-k2"))
+        #expect(local.visibleBuiltIn.contains { $0.id == "kimi-k2" } == false)
+        #expect(local.all.filter { $0.id == "kimi-k2" }.count == 1)
+        #expect(local.profile(id: "kimi-k2")?.isCustom == true)
+        #expect(local.match(modelID: "kimi-k2-instruct")?.sampling.standard?[.temperature] == .double(0.3))
     }
 
     @Test func hiddenBuiltInStopsMatching() {
         var local = registry
-        local.setHiddenBuiltInIDs(["qwen3"])
-        #expect(local.hiddenBuiltIn.map(\.id) == ["qwen3"])
-        #expect(local.profile(id: "qwen3") == nil)
-        #expect(local.resolve(modelID: "qwen3-8b", explicitID: "qwen3").id == "generic")
-        #expect(local.match(modelID: "qwen3-8b") == nil)
-        #expect(local.match(modelID: "Qwen3.8-27B")?.id == "qwen3.5")
+        local.setHiddenBuiltInIDs(["kimi-k2-thinking"])
+        #expect(local.hiddenBuiltIn.map(\.id) == ["kimi-k2-thinking"])
+        #expect(local.profile(id: "kimi-k2-thinking") == nil)
+        #expect(local.resolve(modelID: "unknown", explicitID: "kimi-k2-thinking").id == "generic")
+        #expect(local.match(modelID: "Kimi-K2-Thinking")?.id == "kimi-k2")
         local.setHiddenBuiltInIDs([])
-        #expect(local.match(modelID: "qwen3-8b")?.id == "qwen3")
+        #expect(local.match(modelID: "Kimi-K2-Thinking")?.id == "kimi-k2-thinking")
     }
 
     @Test func bundledProfilesDecode() {
-        #expect(registry.builtIn.count > 20)
-        #expect(registry.profile(id: "qwen3")?.sampling.thinking?[.topK] == .int(20))
+        #expect(bundled.builtIn.map(\.id) == ["qwen3.5", "deepseek-v4", "glm-v", "glm", "kimi-k2-thinking", "kimi-k2"])
+        #expect(bundled.profile(id: "qwen3.5")?.sampling.thinking?[.topK] == .int(20))
     }
 }
 

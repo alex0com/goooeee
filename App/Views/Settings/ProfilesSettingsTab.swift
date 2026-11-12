@@ -7,12 +7,16 @@ import UniformTypeIdentifiers
 /// it; deleting a built-in hides it until restored. Custom profiles are matched before built-ins.
 struct ProfilesSettingsTab: View {
     @Environment(AppModel.self) private var app
-    @State private var selection: ProfileSelection?
+    @State private var selected: Set<ProfileSelection> = []
+    @State private var pendingDeletion: [ProfileSelection] = []
     @State private var editorText = ""
     @State private var editorError: String?
     @State private var testModelID = ""
     @State private var notice: String?
     @State private var confirmDelete = false
+
+    /// The single selected profile, shown in the detail pane.
+    private var selection: ProfileSelection? { selected.count == 1 ? selected.first : nil }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -23,7 +27,17 @@ struct ProfilesSettingsTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
-            if selection == nil { selectFirst() }
+            if selected.isEmpty { selectFirst() }
+        }
+        .confirmationDialog(
+            "Delete \(pendingDeletion.count) profiles?",
+            isPresented: Binding(get: { !pendingDeletion.isEmpty }, set: { if !$0 { pendingDeletion = [] } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { delete(pendingDeletion) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Custom profiles are removed. Built-in ones stop matching models and can be restored from the ••• menu.")
         }
         .alert("Profiles", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button("OK", role: .cancel) {}
@@ -36,7 +50,7 @@ struct ProfilesSettingsTab: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            List(selection: Binding(get: { selection }, set: { if let value = $0 { select(value) } })) {
+            List(selection: $selected) {
                 if !app.profiles.custom.isEmpty {
                     Section("Custom") {
                         ForEach(app.profiles.custom) { profile in
@@ -50,6 +64,17 @@ struct ProfilesSettingsTab: View {
                     }
                 }
             }
+            .contextMenu(forSelectionType: ProfileSelection.self) { items in
+                let count = items.count
+                Button(count == 1 ? "Delete" : "Delete \(count) Profiles") { confirmDelete(Array(items)) }
+                let others = allSelections.filter { !items.contains($0) }
+                Button("Keep Only \(count == 1 ? "This" : "These"), Delete Others (\(others.count))") { confirmDelete(others) }
+                    .disabled(others.isEmpty)
+            }
+            .onDeleteCommand { confirmDelete(Array(selected)) }
+            .onChange(of: selected) { _, value in
+                if value.count == 1, let only = value.first { select(only) }
+            }
             HStack(spacing: 4) {
                 Button {
                     newProfile()
@@ -58,6 +83,14 @@ struct ProfilesSettingsTab: View {
                 }
                 .buttonStyle(.borderless)
                 .help("New custom profile")
+                Button {
+                    confirmDelete(Array(selected))
+                } label: {
+                    Image(systemName: "minus").frame(width: 20, height: 18)
+                }
+                .buttonStyle(.borderless)
+                .disabled(selected.isEmpty)
+                .help("Delete the selected profiles (⌫)")
                 Spacer()
                 Menu {
                     Button("Import Profiles…") { importProfiles() }
@@ -82,7 +115,15 @@ struct ProfilesSettingsTab: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let selection, let profile = profile(for: selection) {
+        if selected.count > 1 {
+            ContentUnavailableView {
+                Label("\(selected.count) Profiles Selected", systemImage: "cpu")
+            } description: {
+                Text("Press ⌫ or use the − button to delete them.")
+            } actions: {
+                Button("Delete \(selected.count) Profiles", role: .destructive) { confirmDelete(Array(selected)) }
+            }
+        } else if let selection, let profile = profile(for: selection) {
             VStack(alignment: .leading, spacing: 12) {
                 header(profile)
                 if selection.isCustom {
@@ -196,8 +237,12 @@ struct ProfilesSettingsTab: View {
         (selection.isCustom ? app.profiles.custom : app.profiles.builtIn).first { $0.id == selection.id }
     }
 
+    private var allSelections: [ProfileSelection] {
+        app.profiles.all.map { ProfileSelection(id: $0.id, isCustom: $0.isCustom) }
+    }
+
     private func select(_ value: ProfileSelection) {
-        selection = value
+        selected = [value]
         editorError = nil
         if let profile = profile(for: value) { editorText = Self.json(for: profile) }
     }
@@ -206,7 +251,33 @@ struct ProfilesSettingsTab: View {
         if let first = app.profiles.all.first {
             select(ProfileSelection(id: first.id, isCustom: first.isCustom))
         } else {
-            selection = nil
+            selected = []
+        }
+    }
+
+    private func confirmDelete(_ items: [ProfileSelection]) {
+        guard !items.isEmpty else { return }
+        if items.count == 1, let only = items.first, only.isCustom || app.profiles.visibleBuiltIn.contains(where: { $0.id == only.id }) {
+            select(only)
+            confirmDelete = true
+        } else {
+            pendingDeletion = items
+        }
+    }
+
+    /// Removes custom profiles and hides built-ins in one go.
+    private func delete(_ items: [ProfileSelection]) {
+        let customIDs = Set(items.filter(\.isCustom).map(\.id))
+        let builtInIDs = Set(items.filter { !$0.isCustom }.map(\.id))
+        pendingDeletion = []
+        Task {
+            if !customIDs.isEmpty {
+                await app.saveCustomProfiles(app.profiles.custom.filter { !customIDs.contains($0.id) })
+            }
+            if !builtInIDs.isEmpty {
+                await app.setHiddenBuiltInProfiles(app.profiles.hiddenBuiltInIDs.union(builtInIDs))
+            }
+            selectFirst()
         }
     }
 
@@ -265,7 +336,7 @@ struct ProfilesSettingsTab: View {
     private func restoreHidden() {
         Task {
             await app.setHiddenBuiltInProfiles([])
-            if selection == nil { selectFirst() }
+            if selected.isEmpty { selectFirst() }
         }
     }
 
