@@ -120,7 +120,7 @@ extension HelpTopic {
             .heading("Tabs"),
             .bullets([
                 "**General:** name, engine type, address, API key, headers and timeout.",
-                "**Model & Sampling:** default model and sampling values, whether the model profile or the server's defaults come first, and whether the model takes images and tool calls (Auto-detect, Yes or No).",
+                "**Model & Sampling:** default model and sampling values, the model profile (Auto-detect shows which profile matched the loaded model), whether the server's defaults or the profile come first, and whether the model takes images and tool calls (Auto-detect, Yes or No).",
                 "**Thinking:** the default thinking level and how it's requested.",
                 "**Template:** a chat template, needed only for the completions API.",
                 "**Launch:** a command that starts the server from the workspace's terminal (**Start Server**).",
@@ -179,10 +179,10 @@ extension HelpTopic {
                 "**This chat:** the inspector with **This Chat** selected.",
                 "**The workspace:** the inspector with **Workspace** selected.",
                 "**The connection:** its Model & Sampling tab.",
-                "**The model profile:** recommended values for the model family, from the model card (Settings → Profiles).",
+                "**The model profile:** recommended values for the model family, from the model card (Settings → Profiles). Built-in profiles can be edited (a copy replaces them) or deleted; the ••• menu restores deleted ones.",
                 "**The server's defaults:** shown, but not sent; the server applies them itself.",
             ]),
-            .text("A connection can put the server's defaults before the model profile (**Server, then model profile**). Thinking uses the same order without the last two. Next to each value, a badge shows where it comes from: chat, workspace, connection, profile or server."),
+            .text("The server's defaults come before the model profile unless the connection chooses **Model profile, then server**. Thinking uses the same order without the last two. Next to each value, a badge shows where it comes from: chat, workspace, connection, profile or server."),
             .heading("App settings"),
             .text("**goooeee → Settings** (⌘,) holds preferences that apply to every window: fonts and text size (⌘+, ⌘−, ⌘0), the send key, how thinking is shown, attachments, tools and MCP, the terminal, model profiles, and advanced options. **Advanced → Reset All Settings** restores the defaults and keeps your connections, workspaces, chats and MCP servers."),
         ]
