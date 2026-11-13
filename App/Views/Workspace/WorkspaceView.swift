@@ -130,7 +130,25 @@ struct ModelPickerButton: View {
             }
             Divider()
             Button("Refresh") { Task { await model.refreshStatus() } }
-            Button("Connection Settings…") { openWindow(id: WindowID.connections) }
+            if model.app.connections.count > 1 {
+                Menu("Switch Connection") {
+                    ForEach(model.app.connections) { connection in
+                        Button {
+                            model.switchConnection(to: connection)
+                        } label: {
+                            if connection.id == model.connection.id {
+                                Label(connection.name, systemImage: "checkmark")
+                            } else {
+                                Text(connection.name)
+                            }
+                        }
+                    }
+                }
+            }
+            Button("Connection Settings…") {
+                model.app.pendingConnectionSelection = model.connection.id
+                openWindow(id: WindowID.connections)
+            }
         } label: {
             HStack(spacing: 6) {
                 StatusDot(status: model.status)

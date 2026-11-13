@@ -125,7 +125,10 @@ struct EmptyChatView: View {
                         Button("Start Server") { model.startServer() }
                             .buttonStyle(.borderedProminent)
                     }
-                    Button("Connection Settings…") { openWindow(id: WindowID.connections) }
+                    Button("Connection Settings…") {
+                        model.app.pendingConnectionSelection = model.connection.id
+                        openWindow(id: WindowID.connections)
+                    }
                 }
             }
             .padding(.top, 8)

@@ -216,8 +216,7 @@ struct WorkspacesListView: View {
     private func changeConnection(of workspace: Workspace, to connection: ServerConnection) {
         guard connection.id != workspace.connectionID else { return }
         if let model = openModel(for: workspace) {
-            model.updateWorkspace { $0.connectionID = connection.id }
-            model.connectionChanged(connection)
+            model.switchConnection(to: connection)
         } else {
             var updated = workspace
             updated.connectionID = connection.id

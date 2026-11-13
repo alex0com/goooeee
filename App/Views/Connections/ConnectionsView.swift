@@ -20,8 +20,10 @@ struct ConnectionsView: View {
                 .frame(minWidth: 560)
         }
         .onAppear {
+            takePendingSelection()
             if selection == nil { selection = app.connections.first?.id }
         }
+        .onChange(of: app.pendingConnectionSelection) { _, _ in takePendingSelection() }
         .confirmationDialog(
             "Delete “\(pendingDelete?.name ?? "")”?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -127,6 +129,13 @@ struct ConnectionsView: View {
     }
 
     // MARK: Actions
+
+    /// Selects the connection a workspace asked to show (Connection Settings…).
+    private func takePendingSelection() {
+        guard let id = app.pendingConnectionSelection else { return }
+        app.pendingConnectionSelection = nil
+        if app.connections.contains(where: { $0.id == id }) { selection = id }
+    }
 
     private func add(_ engine: EngineKind) {
         let existing = Set(app.connections.map(\.name))
@@ -256,6 +265,13 @@ struct ConnectionEditor: View {
             let key = app.apiKey(for: original) ?? ""
             apiKey = key
             savedAPIKey = key
+        }
+        .onChange(of: Self.comparable(original)) { previous, current in
+            // The stored connection changed elsewhere (a workspace, a test result). Follow it unless
+            // the form has edits of its own; those would otherwise be saved over the newer values.
+            guard Self.comparable(draft) == previous else { return }
+            draft = original
+            formRevision += 1
         }
         .alert("Couldn't save", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
             Button("OK", role: .cancel) {}

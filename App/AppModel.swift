@@ -23,6 +23,8 @@ final class AppModel {
     private(set) var profiles = ProfileRegistry.bundled()
     private(set) var isLoaded = false
     var startupError: String?
+    /// Connection the Connections window should select when it next appears or is already open.
+    var pendingConnectionSelection: UUID?
 
     /// Open workspace windows.
     private var workspaceModels: [UUID: WorkspaceModel] = [:]

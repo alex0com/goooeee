@@ -52,6 +52,8 @@ final class WorkspaceModel {
     let terminal: TerminalSession
     @ObservationIgnored private(set) var engine: ChatEngine!
     @ObservationIgnored private var llamaTools: LlamaServerToolSource?
+    /// The connection changed while a reply was streaming; rebuild the engine once it's idle.
+    @ObservationIgnored private var engineRebuildPending = false
     @ObservationIgnored private var statusTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored weak var window: NSWindow?
@@ -113,10 +115,63 @@ final class WorkspaceModel {
         engine = ChatEngine(store: app.database, toolRouter: ToolRouter(providers: providers), delegate: self)
     }
 
+    /// The connection this workspace uses was edited (same id, new values).
     func connectionChanged(_ updated: ServerConnection) {
+        guard updated.id == connection.id else { return switchConnection(to: updated) }
+        let previous = connection
         connection = updated
-        if controllers.values.allSatisfy({ !$0.isGenerating }) { rebuildEngine() }
-        Task { await refreshStatus() }
+        // A workspace still named after the connection follows a rename.
+        if previous.name != updated.name, workspace.name == Workspace.defaultName(connection: previous, modelID: workspace.modelID)
+            || workspace.name == Workspace.defaultName(connection: previous, modelID: nil)
+        {
+            workspace.name = Workspace.defaultName(connection: updated, modelID: workspace.modelID)
+            persistWorkspaceSoon()
+        }
+        rebuildEngineWhenIdle()
+        Task {
+            await refreshStatus()
+            // A workspace still on the old default model follows a new default.
+            if let newDefault = updated.defaultModelID, newDefault != previous.defaultModelID,
+                workspace.modelID == nil || workspace.modelID == previous.defaultModelID
+            {
+                setModel(newDefault)
+            }
+        }
+    }
+
+    /// Moves the workspace to another saved connection. The model is kept if the new server lists
+    /// it; otherwise the connection's default model, or the first loaded one, takes over.
+    func switchConnection(to target: ServerConnection) {
+        guard target.id != connection.id else { return }
+        let previous = connection
+        connection = target
+        workspace.connectionID = target.id
+        if workspace.name == Workspace.defaultName(connection: previous, modelID: nil) || workspace.name.hasPrefix(previous.name + " · ") {
+            workspace.name = Workspace.defaultName(connection: target, modelID: workspace.modelID)
+        }
+        persistWorkspaceSoon()
+        status = .unknown
+        capabilities = ServerCapabilities()
+        rebuildEngineWhenIdle()
+        Task {
+            await refreshStatus()
+            let listed = capabilities.models.map(\.id)
+            guard !listed.isEmpty else { return }
+            if let current = workspace.modelID, listed.contains(current) { return }
+            let replacement = target.defaultModelID.flatMap { listed.contains($0) ? $0 : nil }
+                ?? capabilities.models.first(where: { $0.loadState != .unloaded })?.id
+                ?? listed.first
+            if let replacement { setModel(replacement) }
+        }
+    }
+
+    private func rebuildEngineWhenIdle() {
+        if controllers.values.allSatisfy({ !$0.isGenerating }) {
+            engineRebuildPending = false
+            rebuildEngine()
+        } else {
+            engineRebuildPending = true
+        }
     }
 
     // MARK: Derived
@@ -202,9 +257,7 @@ final class WorkspaceModel {
     }
 
     func refreshStatus() async {
-        if case .starting = status, terminal.isServerStarting {
-            // The terminal's health wait updates the status.
-        }
+        if engineRebuildPending { rebuildEngineWhenIdle() }
         let probe = ServerProbe(connection: connection, apiKey: apiKey)
         let result = await probe.probe(modelID: workspace.modelID)
         if terminal.isServerStarting, !result.status.isOnline {

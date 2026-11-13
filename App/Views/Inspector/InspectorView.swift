@@ -198,7 +198,10 @@ private struct ModelSection: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer()
-                Button("Connection…") { openWindow(id: WindowID.connections) }
+                Button("Connection…") {
+                    model.app.pendingConnectionSelection = model.connection.id
+                    openWindow(id: WindowID.connections)
+                }
                     .controlSize(.small)
             }
         }
