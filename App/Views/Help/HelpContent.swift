@@ -95,7 +95,7 @@ extension HelpTopic {
                 "Pick the server, or **Another server…** to enter its address, then pick a model.",
                 "Click **Create Workspace**, then **New Chat** (⌘N) and type.",
             ]),
-            .text("The dot next to the model name in the toolbar shows the server's state: green online, orange starting or loading a model, red offline. Click it to switch models, refresh or open the connection's settings."),
+            .text("The dot next to the model name in the toolbar shows the server's state: green online, orange starting or loading a model, red offline. Click it to switch models or connections, refresh, or open this workspace's connection settings. Edits to a connection apply to every open workspace that uses it."),
             .heading("The window"),
             .bullets([
                 "**Left:** your chats, with search (⌘K), pinned chats and Recently Deleted.",
