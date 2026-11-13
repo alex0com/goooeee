@@ -15,6 +15,7 @@ struct ConnectionGeneralTab: View {
     @State private var models: [RemoteModel] = []
     @State private var loadingModels = false
     @State private var modelError: String?
+    @State private var choosingModel = false
 
     var body: some View {
         Form {
@@ -106,26 +107,32 @@ struct ConnectionGeneralTab: View {
     }
 
     private var modelMenu: some View {
-        Menu {
-            if models.isEmpty {
-                Text(loadingModels ? "Loading…" : "No models loaded")
-            }
-            ForEach(models) { model in
-                Button(model.id + (model.loadState == .loaded ? "  (loaded)" : "")) {
-                    draft.defaultModelID = model.id
-                }
-            }
-            Divider()
-            Button("Refresh List") { Task { await loadModels() } }
+        Button {
+            choosingModel.toggle()
         } label: {
             if loadingModels {
                 ProgressView().controlSize(.small)
             } else {
-                Text("Choose")
+                Text("Choose…")
             }
         }
         .fixedSize()
         .task { await loadModels() }
+        .popover(isPresented: $choosingModel, arrowEdge: .bottom) {
+            ModelSearchList(
+                models: models,
+                selectedID: draft.defaultModelID,
+                emptyMessage: loadingModels ? "Asking the server for its models…" : (modelError ?? "The server lists no models."),
+                onPick: { id in
+                    choosingModel = false
+                    draft.defaultModelID = id
+                },
+                footer: {
+                    Button("Refresh") { Task { await loadModels() } }
+                        .disabled(loadingModels)
+                }
+            )
+        }
     }
 
     private var headersSection: some View {
@@ -360,7 +367,7 @@ struct ConnectionSamplingTab: View {
         let result = await probe.probe(modelID: draft.defaultModelID)
         serverDefaults = result.capabilities.defaultSampling
         let models = result.capabilities.models
-        serverModelID = (models.first { $0.loadState == .loaded } ?? models.first)?.id
+        serverModelID = AutomaticModelChoice.choose(from: models)
         probed = true
     }
 }

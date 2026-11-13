@@ -102,53 +102,16 @@ struct WorkspaceView: View {
     }
 }
 
-/// Status dot + model name; the menu switches models (and loads them on llama.cpp routers).
+/// Status dot + model name; the popover searches and switches models (and loads them on llama.cpp routers).
 struct ModelPickerButton: View {
     var model: WorkspaceModel
     @Environment(\.openWindow) private var openWindow
 
+    @State private var isPresented = false
+
     var body: some View {
-        Menu {
-            if model.capabilities.models.isEmpty {
-                Text(model.status.isOnline ? "The server lists no models" : model.status.label)
-            } else {
-                Section("Models on \(model.connection.name)") {
-                    ForEach(ModelNameFormatter.sortedByShortName(model.capabilities.models, id: \.id)) { remote in
-                        Button {
-                            model.setModel(remote.id)
-                        } label: {
-                            HStack {
-                                if remote.id == model.workspace.modelID { Image(systemName: "checkmark") }
-                                Text(remote.displayName)
-                                if let state = remote.loadState, state != .loaded, state != .unknown {
-                                    Text(state.rawValue).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Divider()
-            Button("Refresh") { Task { await model.refreshStatus() } }
-            if model.app.connections.count > 1 {
-                Menu("Switch Connection") {
-                    ForEach(model.app.connections) { connection in
-                        Button {
-                            model.switchConnection(to: connection)
-                        } label: {
-                            if connection.id == model.connection.id {
-                                Label(connection.name, systemImage: "checkmark")
-                            } else {
-                                Text(connection.name)
-                            }
-                        }
-                    }
-                }
-            }
-            Button("Connection Settings…") {
-                model.app.pendingConnectionSelection = model.connection.id
-                openWindow(id: WindowID.connections)
-            }
+        Button {
+            isPresented.toggle()
         } label: {
             HStack(spacing: 6) {
                 StatusDot(status: model.status)
@@ -160,11 +123,53 @@ struct ModelPickerButton: View {
                 } else if model.status == .loadingModel || model.status == .starting {
                     Text(model.status.label).foregroundStyle(.secondary)
                 }
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
         }
-        .menuIndicator(.visible)
         .fixedSize()
         .help(helpText)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            ModelSearchList(
+                models: model.capabilities.models,
+                selectedID: model.workspace.modelID,
+                nameStyle: .shortName,
+                emptyMessage: model.status.isOnline ? "The server lists no models." : model.status.label,
+                onPick: { id in
+                    isPresented = false
+                    model.setModel(id)
+                },
+                footer: { footer }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        Button("Refresh") { Task { await model.refreshStatus() } }
+        if model.app.connections.count > 1 {
+            Menu("Switch Connection") {
+                ForEach(model.app.connections) { connection in
+                    Button {
+                        isPresented = false
+                        model.switchConnection(to: connection)
+                    } label: {
+                        if connection.id == model.connection.id {
+                            Label(connection.name, systemImage: "checkmark")
+                        } else {
+                            Text(connection.name)
+                        }
+                    }
+                }
+            }
+            .fixedSize()
+        }
+        Button("Connection Settings…") {
+            isPresented = false
+            model.app.pendingConnectionSelection = model.connection.id
+            openWindow(id: WindowID.connections)
+        }
     }
 
     private var helpText: String {

@@ -125,7 +125,7 @@ public struct DiscoveredServer: Identifiable, Sendable, Hashable {
 
     public func makeConnection() -> ServerConnection {
         var connection = ServerConnection.preset(engine, name: engine.displayName, baseURL: baseURL)
-        connection.defaultModelID = models.first
+        connection.defaultModelID = models.count == 1 ? models.first : nil
         return connection
     }
 }

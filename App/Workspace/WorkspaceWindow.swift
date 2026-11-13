@@ -212,12 +212,12 @@ struct NewWorkspaceView: View {
                             Text(loadingModels ? "Asking the server for its models…" : "No models listed yet.")
                                 .foregroundStyle(.secondary)
                         } else {
-                            Picker("Model", selection: $selectedModel) {
-                                ForEach(models) { model in
-                                    Text(model.id + (model.loadState == .loaded ? "  (loaded)" : "")).tag(Optional(model.id))
-                                }
+                            ModelSearchPicker(models: models, selectedID: selectedModel) { selectedModel = $0 }
+                            if selectedModel == nil {
+                                Text("Choose one of the \(models.count) models this server lists.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
                             }
-                            .labelsHidden()
                         }
                         TextField("Workspace name", text: $name, prompt: Text(defaultName))
                             .textFieldStyle(.roundedBorder)
@@ -239,7 +239,7 @@ struct NewWorkspaceView: View {
                 Button("Create Workspace") { Task { await create() } }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(choice == nil || (choice == .manual && manualURL.isEmpty))
+                    .disabled(choice == nil || (choice == .manual && manualURL.isEmpty) || (!models.isEmpty && selectedModel == nil))
             }
         }
         .padding(24)
@@ -308,8 +308,7 @@ struct NewWorkspaceView: View {
         let key = apiKey.isEmpty ? app.apiKey(for: connection) : apiKey
         do {
             models = try await ProviderFactory.make(connection: connection, apiKey: key).listModels()
-            selectedModel = connection.defaultModelID.flatMap { id in models.first { $0.id == id }?.id }
-                ?? models.first(where: { $0.loadState == .loaded })?.id ?? models.first?.id
+            selectedModel = AutomaticModelChoice.choose(from: models, preferred: connection.defaultModelID)
         } catch {
             models = []
             let mapped = InferenceError.from(error)

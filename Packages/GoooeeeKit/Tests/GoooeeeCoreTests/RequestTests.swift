@@ -360,6 +360,22 @@ struct ModelListOrderTests {
         ])
     }
 
+    @Test func automaticChoiceNeverPicksByPosition() {
+        let many = [RemoteModel(id: "a/one"), RemoteModel(id: "b/two"), RemoteModel(id: "c/three")]
+        #expect(AutomaticModelChoice.choose(from: many) == nil)
+        #expect(AutomaticModelChoice.choose(from: many, preferred: "b/two") == "b/two")
+        #expect(AutomaticModelChoice.choose(from: many, preferred: "z/missing") == nil)
+        #expect(AutomaticModelChoice.choose(from: [RemoteModel(id: "only")]) == "only")
+        #expect(AutomaticModelChoice.choose(from: []) == nil)
+    }
+
+    @Test func automaticChoiceTakesTheSingleLoadedModel() {
+        var models = [RemoteModel(id: "a", loadState: .unloaded), RemoteModel(id: "b", loadState: .loaded), RemoteModel(id: "c", loadState: .unknown)]
+        #expect(AutomaticModelChoice.choose(from: models) == "b")
+        models[0].loadState = .loaded
+        #expect(AutomaticModelChoice.choose(from: models) == nil, "two loaded models are a real choice")
+    }
+
     @Test func shortNameOrderFollowsTheShownName() {
         let ids = ["meta/muse-ember", "anthropic/claude-fable-5.2", "zeta/claude-fable-5.2", "qwen3.8-27b.gguf", "google/gemini-4-carbon"]
         #expect(ModelNameFormatter.sortedByShortName(ids) == [

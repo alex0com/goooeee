@@ -113,3 +113,17 @@ public enum ServerStatus: Sendable, Hashable {
 
     public var isOnline: Bool { self == .online }
 }
+
+/// When goooeee may choose a model without asking.
+public enum AutomaticModelChoice {
+    /// A model only when the choice is unambiguous: the preferred one (a connection's default) if the
+    /// server lists it, the single model the server reports as loaded, or the server's only model.
+    /// Never a model picked by its position in the list.
+    public static func choose(from models: [RemoteModel], preferred: String? = nil) -> String? {
+        if let preferred, models.contains(where: { $0.id == preferred }) { return preferred }
+        let loaded = models.filter { $0.loadState == .loaded }
+        if loaded.count == 1 { return loaded[0].id }
+        if models.count == 1 { return models[0].id }
+        return nil
+    }
+}

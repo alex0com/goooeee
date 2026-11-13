@@ -174,16 +174,12 @@ private struct ModelSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Model").sectionHeader()
-            Picker("Model", selection: Binding(
-                get: { model.workspace.modelID ?? "" },
-                set: { if !$0.isEmpty { model.setModel($0) } }
-            )) {
-                if model.workspace.modelID == nil { Text("Choose a model").tag("") }
-                ForEach(modelIDs, id: \.self) { id in
-                    Text(ModelNameFormatter.shortName(id)).tag(id)
-                }
-            }
-            .labelsHidden()
+            ModelSearchPicker(
+                models: models,
+                selectedID: model.workspace.modelID,
+                nameStyle: .shortName,
+                emptyMessage: model.status.isOnline ? "The server lists no models." : model.status.label
+            ) { model.setModel($0) }
             HStack(spacing: 6) {
                 StatusDot(status: model.status)
                 Text(model.status.label).font(.caption).foregroundStyle(.secondary)
@@ -207,11 +203,13 @@ private struct ModelSection: View {
         }
     }
 
-    /// Server models plus the current one if the server doesn't list it, in the order of their shown names.
-    private var modelIDs: [String] {
-        var ids = model.capabilities.models.map(\.id)
-        if let current = model.workspace.modelID, !ids.contains(current) { ids.append(current) }
-        return ModelNameFormatter.sortedByShortName(ids)
+    /// Server models plus the current one if the server doesn't list it.
+    private var models: [RemoteModel] {
+        var list = model.capabilities.models
+        if let current = model.workspace.modelID, !list.contains(where: { $0.id == current }) {
+            list.append(RemoteModel(id: current))
+        }
+        return list
     }
 
     private var capabilityRow: some View {

@@ -158,10 +158,13 @@ final class WorkspaceModel {
             let listed = capabilities.models.map(\.id)
             guard !listed.isEmpty else { return }
             if let current = workspace.modelID, listed.contains(current) { return }
-            let replacement = target.defaultModelID.flatMap { listed.contains($0) ? $0 : nil }
-                ?? capabilities.models.first(where: { $0.loadState != .unloaded })?.id
-                ?? listed.first
-            if let replacement { setModel(replacement) }
+            if let replacement = AutomaticModelChoice.choose(from: capabilities.models, preferred: target.defaultModelID) {
+                setModel(replacement)
+            } else if workspace.modelID != nil {
+                // The old model isn't on this server; leave the choice to the user.
+                workspace.modelID = nil
+                persistWorkspaceSoon()
+            }
         }
     }
 
@@ -268,8 +271,10 @@ final class WorkspaceModel {
         }
         if result.capabilities.reachable {
             capabilities = result.capabilities
-            if workspace.modelID == nil, let first = capabilities.models.first(where: { $0.loadState != .unloaded }) ?? capabilities.models.first {
-                setModel(first.id)
+            if workspace.modelID == nil,
+                let choice = AutomaticModelChoice.choose(from: capabilities.models, preferred: connection.defaultModelID)
+            {
+                setModel(choice)
             }
         }
     }
