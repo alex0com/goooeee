@@ -84,12 +84,27 @@ struct CopyButton: View {
             }
         } label: {
             if showsTitle {
-                Label(copied ? "Copied" : label, systemImage: copied ? "checkmark" : "doc.on.doc")
+                Label {
+                    Text(copied ? "Copied" : label)
+                } icon: {
+                    icon
+                }
             } else {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                icon
             }
         }
-        .help(label)
+        .help(copied ? "Copied" : label)
+        .animation(.easeInOut(duration: 0.15), value: copied)
+    }
+
+    /// Green checkmark while confirming; otherwise the button's usual styling is left alone.
+    @ViewBuilder
+    private var icon: some View {
+        if copied {
+            Image(systemName: "checkmark").foregroundStyle(.green)
+        } else {
+            Image(systemName: "doc.on.doc")
+        }
     }
 }
 

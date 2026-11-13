@@ -284,9 +284,10 @@ final class CodeBlockCell: TranscriptCellView {
         previewButton.isHidden = info.isOpen || !SyntaxHighlighter.isPreviewable(info.language)
         let code = info.code
         let language = info.language
+        copyButton.endCopiedFlash()
         copyButton.onClick = { [weak self] in
             TranscriptContext.copyToPasteboard(code)
-            self?.flashCopied()
+            self?.copyButton.flashCopied()
         }
         pasteButton.onClick = { [weak context] in context?.pasteInTerminal(code) }
         saveButton.onClick = { [weak context] in
@@ -295,14 +296,6 @@ final class CodeBlockCell: TranscriptCellView {
         previewButton.onClick = { [weak context] in context?.preview(code: code, language: language) }
         let rowID = row.id
         toggleButton.onClick = { [weak context] in context?.toggleCode(rowID: rowID) }
-    }
-
-    private func flashCopied() {
-        copyButton.setSymbol("checkmark", tooltip: "Copied")
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            self?.copyButton.setSymbol("doc.on.doc", tooltip: "Copy code")
-        }
     }
 
     override func layout() {
@@ -531,9 +524,11 @@ final class TableCell: TranscriptCellView {
 
     override func configure(_ row: TranscriptRow, context: TranscriptContext) {
         super.configure(row, context: context)
+        copyButton.endCopiedFlash()
         copyButton.onClick = { [weak self] in
             guard let layout = self?.grid.layout else { return }
             TranscriptContext.copyToPasteboard(layout.markdown)
+            self?.copyButton.flashCopied()
         }
     }
 

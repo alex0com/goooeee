@@ -75,7 +75,11 @@ final class UserMessageCell: TranscriptCellView {
         editButton.isEnabled = !busy
         deleteButton.isEnabled = !busy
         editButton.onClick = { [weak context] in context?.startEditing(messageID) }
-        copyButton.onClick = { [weak context] in context?.copyMessage(messageID) }
+        copyButton.endCopiedFlash()
+        copyButton.onClick = { [weak context, weak button = copyButton] in
+            context?.copyMessage(messageID)
+            button?.flashCopied()
+        }
         deleteButton.onClick = { [weak context] in context?.deleteMessage(messageID) }
     }
 
@@ -571,7 +575,11 @@ final class FooterCell: TranscriptCellView {
         rawButton.contentTintColor = showingRaw ? .controlAccentColor : .secondaryLabelColor
         rawButton.setSymbol("chevron.left.forwardslash.chevron.right", tooltip: showingRaw ? "Show formatted output" : "Show raw output")
 
-        copyButton.onClick = { [weak context] in context?.copyMessage(messageID) }
+        copyButton.endCopiedFlash()
+        copyButton.onClick = { [weak context, weak button = copyButton] in
+            context?.copyMessage(messageID)
+            button?.flashCopied()
+        }
         regenerateButton.onClick = { [weak context] in context?.regenerate(messageID) }
         continueButton.onClick = { [weak context] in context?.continueMessage(messageID) }
         editButton.onClick = { [weak context] in context?.startEditing(messageID) }

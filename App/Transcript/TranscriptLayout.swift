@@ -196,6 +196,35 @@ final class ActionButton: NSButton {
         toolTip = tooltip
         setAccessibilityLabel(tooltip)
     }
+
+    /// What the button looked like before `flashCopied()`, restored afterwards.
+    private var flashRestore: (image: NSImage?, tooltip: String?, tint: NSColor?)?
+    private var flashTask: Task<Void, Never>?
+
+    /// Confirms a copy: a green checkmark for a moment, then the original icon.
+    func flashCopied(duration: TimeInterval = 1.2) {
+        if flashRestore == nil { flashRestore = (image, toolTip, contentTintColor) }
+        setSymbol("checkmark", tooltip: "Copied")
+        contentTintColor = .systemGreen
+        flashTask?.cancel()
+        flashTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.endCopiedFlash()
+        }
+    }
+
+    /// Restores the icon right away, e.g. when a reused cell shows another row.
+    func endCopiedFlash() {
+        flashTask?.cancel()
+        flashTask = nil
+        guard let restore = flashRestore else { return }
+        flashRestore = nil
+        image = restore.image
+        toolTip = restore.tooltip
+        setAccessibilityLabel(restore.tooltip)
+        contentTintColor = restore.tint
+    }
 }
 
 /// A menu item that runs a closure.
