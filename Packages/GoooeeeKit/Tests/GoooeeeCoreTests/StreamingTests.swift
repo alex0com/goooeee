@@ -171,6 +171,52 @@ struct StreamDecoderTests {
 
 @Suite("Stream accumulator")
 struct StreamAccumulatorTests {
+    /// Live speed updates while streaming, for each way a server can deliver tokens.
+    private func liveUpdates(_ events: [StreamEvent], start: Double = 1, step: Double = 0.05) -> (updates: Int, last: GenerationMetrics?) {
+        var accumulator = StreamAccumulator(splitter: ReasoningSplitter(format: .auto), requestStart: 0)
+        var updates = 0
+        var last: GenerationMetrics?
+        for (offset, event) in events.enumerated() {
+            for change in accumulator.apply(event, now: start + Double(offset) * step) {
+                if case .metricsUpdated(let metrics) = change {
+                    updates += 1
+                    last = metrics
+                }
+            }
+        }
+        return (updates, last)
+    }
+
+    @Test func reasoningFieldPublishesLiveSpeed() throws {
+        // vLLM, LM Studio, Ollama and most proxies send thinking in a separate field.
+        let thinking = (0..<20).map { StreamEvent.reasoningDelta("t\($0) ") }
+        let (updates, last) = liveUpdates(thinking)
+        #expect(updates == 20)
+        let speed = try #require(last?.generationSpeed)
+        #expect(speed.source == .client)
+        #expect(abs(speed.value - 20) < 0.01)
+    }
+
+    @Test func contentAfterReasoningFieldPublishesLiveSpeed() {
+        let events = [StreamEvent.reasoningDelta("thinking ")] + (0..<10).map { StreamEvent.contentDelta("w\($0) ") }
+        let (updates, last) = liveUpdates(events)
+        #expect(updates == 11)
+        #expect(last?.deltaCount == 11)
+    }
+
+    @Test func toolCallArgumentsCountTowardLiveSpeed() {
+        let events = [StreamEvent.toolCallDelta(index: 0, id: "call_1", name: "search", argumentsFragment: "")]
+            + (0..<6).map { StreamEvent.toolCallDelta(index: 0, id: nil, name: nil, argumentsFragment: "x\($0)") }
+        let (updates, last) = liveUpdates(events)
+        #expect(updates == 7)
+        #expect(last?.deltaCount == 6, "the empty opening fragment isn't a token")
+    }
+
+    @Test func taggedThinkingStillPublishesLiveSpeed() {
+        let events = [StreamEvent.contentDelta("<think>")] + (0..<9).map { StreamEvent.contentDelta("t\($0) ") }
+        #expect(liveUpdates(events).updates == 10)
+    }
+
     @Test func buildsBlocksAndServerMetrics() throws {
         let events = try decodeFixture("llamacpp_reasoning", chunkSize: 64, decoder: OpenAIStreamDecoderAdapter())
         var accumulator = StreamAccumulator(splitter: ReasoningSplitter(format: .auto), requestStart: 0)

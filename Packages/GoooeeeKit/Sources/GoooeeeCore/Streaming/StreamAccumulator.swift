@@ -126,7 +126,7 @@ public struct StreamAccumulator: Sendable {
         case .reasoningDelta(let text):
             fieldReasoningSeen = true
             markToken(now)
-            return appendReasoning(text, now: now)
+            return appendReasoning(text, now: now) + [.metricsUpdated(metrics)]
 
         case .reasoningSignature(let signature):
             self.signature = (self.signature ?? "") + signature
@@ -140,7 +140,7 @@ public struct StreamAccumulator: Sendable {
         case .contentDelta(let text):
             markToken(now)
             if fieldReasoningSeen {
-                return appendContent(text, now: now)
+                return appendContent(text, now: now) + [.metricsUpdated(metrics)]
             }
             var changes: [AccumulatorChange] = []
             for output in splitter.feed(text) {
@@ -150,8 +150,10 @@ public struct StreamAccumulator: Sendable {
 
         case .toolCallDelta(let index, let id, let name, let fragment):
             markToken(now)
+            // Argument fragments are generated tokens too; count them for the live speed.
+            if !fragment.isEmpty { metrics.deltaCount += 1 }
             tools.apply(index: index, id: id, name: name, argumentsFragment: fragment)
-            return closeThinking(now: now) + [.toolCallsUpdated(tools.toolCalls)]
+            return closeThinking(now: now) + [.toolCallsUpdated(tools.toolCalls), .metricsUpdated(metrics)]
 
         case .usage(let newUsage):
             usage.promptTokens = newUsage.promptTokens ?? usage.promptTokens
