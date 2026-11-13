@@ -207,11 +207,11 @@ private struct ModelSection: View {
         }
     }
 
-    /// Server models plus the current one if the server doesn't list it.
+    /// Server models plus the current one if the server doesn't list it, in the order of their shown names.
     private var modelIDs: [String] {
         var ids = model.capabilities.models.map(\.id)
-        if let current = model.workspace.modelID, !ids.contains(current) { ids.insert(current, at: 0) }
-        return ids
+        if let current = model.workspace.modelID, !ids.contains(current) { ids.append(current) }
+        return ModelNameFormatter.sortedByShortName(ids)
     }
 
     private var capabilityRow: some View {

@@ -113,7 +113,7 @@ struct ModelPickerButton: View {
                 Text(model.status.isOnline ? "The server lists no models" : model.status.label)
             } else {
                 Section("Models on \(model.connection.name)") {
-                    ForEach(model.capabilities.models) { remote in
+                    ForEach(ModelNameFormatter.sortedByShortName(model.capabilities.models, id: \.id)) { remote in
                         Button {
                             model.setModel(remote.id)
                         } label: {

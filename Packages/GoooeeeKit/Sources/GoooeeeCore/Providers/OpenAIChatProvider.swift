@@ -296,11 +296,12 @@ public struct OpenAIChatProvider: InferenceProvider {
 }
 
 /// Parses `/v1/models` responses (OpenAI, llama.cpp router, vLLM, Ollama, LM Studio, mlx).
+/// Models come back sorted by ID; servers list them in arbitrary order.
 public enum ModelListParser {
     public static func parse(_ data: Data) throws -> [RemoteModel] {
         let json = try JSONValue.parse(data)
         let entries = json["data"]?.arrayValue ?? json["models"]?.arrayValue ?? json.arrayValue ?? []
-        return entries.compactMap { entry in
+        return entries.compactMap { entry -> RemoteModel? in
             guard let id = entry["id"]?.stringValue ?? entry["name"]?.stringValue ?? entry["model"]?.stringValue else { return nil }
             var model = RemoteModel(id: id, ownedBy: entry["owned_by"]?.stringValue)
             model.contextLength = entry["max_model_len"]?.intValue
@@ -317,6 +318,7 @@ public enum ModelListParser {
             model.inputModalities = entry["architecture"]?["input_modalities"]?.arrayValue?.compactMap(\.stringValue)
             return model
         }
+        .sorted { ModelNameFormatter.precedes($0.id, $1.id) }
     }
 }
 

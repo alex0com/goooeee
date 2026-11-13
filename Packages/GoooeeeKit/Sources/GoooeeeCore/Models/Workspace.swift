@@ -102,4 +102,27 @@ public enum ModelNameFormatter {
         if name.lowercased().hasSuffix(".gguf") { name.removeLast(5) }
         return name.isEmpty ? modelID : name
     }
+
+    /// Alphabetical, ignoring case, with numbers in numeric order ("lfm-3-1.7b" before "lfm-3-12b").
+    public static func precedes(_ lhs: String, _ rhs: String) -> Bool {
+        switch lhs.compare(rhs, options: [.caseInsensitive, .numeric]) {
+        case .orderedAscending: true
+        case .orderedDescending: false
+        case .orderedSame: lhs < rhs
+        }
+    }
+
+    /// Items ordered by the short model name menus show, then by the full ID.
+    public static func sortedByShortName<Item>(_ items: [Item], id: (Item) -> String) -> [Item] {
+        items.sorted { lhs, rhs in
+            let (leftID, rightID) = (id(lhs), id(rhs))
+            let (left, right) = (shortName(leftID), shortName(rightID))
+            if left.compare(right, options: [.caseInsensitive, .numeric]) == .orderedSame { return precedes(leftID, rightID) }
+            return precedes(left, right)
+        }
+    }
+
+    public static func sortedByShortName(_ modelIDs: [String]) -> [String] {
+        sortedByShortName(modelIDs) { $0 }
+    }
 }

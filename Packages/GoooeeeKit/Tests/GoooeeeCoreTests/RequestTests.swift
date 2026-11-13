@@ -343,6 +343,31 @@ struct ModelProfileTests {
     }
 }
 
+@Suite("Model lists")
+struct ModelListOrderTests {
+    @Test func parsedModelsAreSortedByID() throws {
+        let json = """
+        {"data": [
+            {"id": "google/gemini-4-hydrogen"}, {"id": "baidu/ernie-5.5-flash-preview:free"},
+            {"id": "liquid/lfm-3-12b"}, {"id": "Anthropic/claude-fable-5.2"},
+            {"id": "liquid/lfm-3-1.7b"}, {"id": "anthropic/claude-fable-5.2:batch"}
+        ]}
+        """
+        let ids = try ModelListParser.parse(Data(json.utf8)).map(\.id)
+        #expect(ids == [
+            "Anthropic/claude-fable-5.2", "anthropic/claude-fable-5.2:batch", "baidu/ernie-5.5-flash-preview:free",
+            "google/gemini-4-hydrogen", "liquid/lfm-3-1.7b", "liquid/lfm-3-12b",
+        ])
+    }
+
+    @Test func shortNameOrderFollowsTheShownName() {
+        let ids = ["meta/muse-ember", "anthropic/claude-fable-5.2", "zeta/claude-fable-5.2", "qwen3.8-27b.gguf", "google/gemini-4-carbon"]
+        #expect(ModelNameFormatter.sortedByShortName(ids) == [
+            "anthropic/claude-fable-5.2", "zeta/claude-fable-5.2", "google/gemini-4-carbon", "meta/muse-ember", "qwen3.8-27b.gguf",
+        ])
+    }
+}
+
 @Suite("URLs and curl")
 struct CurlAndURLTests {
     @Test func normalizeUserURLs() {
